@@ -1,0 +1,2049 @@
+import 'dart:async';
+import 'dart:math';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  runApp(const DamaApp());
+}
+
+class DamaApp extends StatelessWidget {
+  const DamaApp({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Dama Pro',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: const Color(0xFFC9A227),
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF07130E),
+      ),
+      home: const SplashScreen(),
+    );
+  }
+}
+
+// =======================================================================
+// SPLASH
+// =======================================================================
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..forward();
+    Future.delayed(const Duration(milliseconds: 1400), () {
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            transitionDuration: const Duration(milliseconds: 500),
+            pageBuilder: (_, anim, __) =>
+                FadeTransition(opacity: anim, child: const GameScreen()),
+          ),
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.center,
+            radius: 1.2,
+            colors: [Color(0xFF17362B), Color(0xFF06120D)],
+          ),
+        ),
+        child: Center(
+          child: ScaleTransition(
+            scale: CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut),
+            child: FadeTransition(
+              opacity: CurvedAnimation(
+                parent: _ctrl,
+                curve: const Interval(0, 0.5),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 92,
+                    height: 92,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const RadialGradient(
+                        colors: [Color(0xFFFFE9A8), Color(0xFFC9A227)],
+                        center: Alignment(-0.3, -0.3),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFC9A227).withOpacity(0.5),
+                          blurRadius: 30,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.circle,
+                      color: Color(0xFF241708),
+                      size: 34,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  const Text(
+                    'DAMA PRO',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 30,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 8,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'TÜRK DAMASI',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.45),
+                      fontSize: 12,
+                      letterSpacing: 6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// =======================================================================
+// MODELLER
+// =======================================================================
+
+class Piece {
+  final int id;
+  int row;
+  int col;
+  final bool isWhite;
+  bool isKing;
+  bool alive;
+  Piece({
+    required this.id,
+    required this.row,
+    required this.col,
+    required this.isWhite,
+    this.isKing = false,
+    this.alive = true,
+  });
+  Piece copy() => Piece(
+    id: id,
+    row: row,
+    col: col,
+    isWhite: isWhite,
+    isKing: isKing,
+    alive: alive,
+  );
+}
+
+class MoveOption {
+  final List<List<int>> path;
+  final List<List<int>> captured;
+  MoveOption({required this.path, required this.captured});
+  bool get isCapture => captured.isNotEmpty;
+  List<int> get from => path.first;
+  List<int> get to => path.last;
+}
+
+class GameSnapshot {
+  final Map<int, Piece> pieces;
+  final List<List<int>> idGrid;
+  final bool whiteTurn;
+  final List<String> moveLog;
+  GameSnapshot(this.pieces, this.idGrid, this.whiteTurn, this.moveLog);
+}
+
+// =======================================================================
+// OYUN MOTORU — saf fonksiyonlar (isolate uyumlu)
+// Turk Damasi: taslar duz (yatay/dikey) hareket eder, yeme zorunlu, en
+// fazla tas yiyen zincir zorunlu, dama kale gibi hareket eder + ucarak yer.
+// =======================================================================
+
+const int boardSize = 8;
+
+bool _inBounds(int r, int c) =>
+    r >= 0 && r < boardSize && c >= 0 && c < boardSize;
+
+List<List<int>> cloneBoard(List<List<int>> b) =>
+    b.map((row) => List<int>.from(row)).toList();
+
+const List<List<int>> _dirs = [
+  [-1, 0],
+  [1, 0],
+  [0, -1],
+  [0, 1],
+];
+
+List<MoveOption> getAllMoves(List<List<int>> board, bool isWhite) {
+  final List<MoveOption> captureMoves = [];
+  for (int r = 0; r < boardSize; r++) {
+    for (int c = 0; c < boardSize; c++) {
+      final v = board[r][c];
+      if (v == 0) continue;
+      final pieceIsWhite = v > 0;
+      if (pieceIsWhite != isWhite) continue;
+      final isKing = v.abs() == 2;
+      final b2 = cloneBoard(board);
+      b2[r][c] = 0;
+      final seqs = _exploreCaptures(b2, r, c, isKing, isWhite, [
+        [r, c],
+      ], []);
+      captureMoves.addAll(seqs);
+    }
+  }
+  if (captureMoves.isNotEmpty) {
+    final maxLen = captureMoves.map((m) => m.captured.length).reduce(max);
+    final best = captureMoves
+        .where((m) => m.captured.length == maxLen)
+        .toList();
+    _orderMoves(best, board);
+    return best;
+  }
+  final simple = _simpleMoves(board, isWhite);
+  _orderMoves(simple, board);
+  return simple;
+}
+
+/// Alfa-beta budamasini iyilestirmek icin hamleleri sirala: tac olacak
+/// hamleler ve merkeze yakin hamleler once gelsin.
+void _orderMoves(List<MoveOption> moves, List<List<int>> board) {
+  int score(MoveOption m) {
+    int s = m.captured.length * 100;
+    final to = m.to;
+    final centerDist = (to[0] - 3.5).abs() + (to[1] - 3.5).abs();
+    s += (7 - centerDist).round();
+    final v = board[m.from[0]][m.from[1]];
+    final willPromote =
+        (v == 1 && to[0] == boardSize - 1) || (v == -1 && to[0] == 0);
+    if (willPromote) s += 50;
+    return s;
+  }
+
+  moves.sort((a, b) => score(b).compareTo(score(a)));
+}
+
+List<MoveOption> _exploreCaptures(
+  List<List<int>> board,
+  int curR,
+  int curC,
+  bool isKing,
+  bool isWhite,
+  List<List<int>> path,
+  List<List<int>> captured,
+) {
+  final List<MoveOption> moves = [];
+  for (final d in _dirs) {
+    final dr = d[0], dc = d[1];
+    if (isKing) {
+      int step = 1;
+      List<int>? enemyPos;
+      while (true) {
+        final nr = curR + dr * step;
+        final nc = curC + dc * step;
+        if (!_inBounds(nr, nc)) break;
+        final val = board[nr][nc];
+        if (val == 0) {
+          if (enemyPos == null) {
+            step++;
+            continue;
+          } else {
+            final nb = cloneBoard(board);
+            nb[enemyPos[0]][enemyPos[1]] = 0;
+            final newPath = [
+              ...path,
+              [nr, nc],
+            ];
+            final newCaptured = [...captured, enemyPos];
+            final sub = _exploreCaptures(
+              nb,
+              nr,
+              nc,
+              isKing,
+              isWhite,
+              newPath,
+              newCaptured,
+            );
+            if (sub.isEmpty) {
+              moves.add(MoveOption(path: newPath, captured: newCaptured));
+            } else {
+              moves.addAll(sub);
+            }
+            step++;
+            continue;
+          }
+        } else {
+          final isEnemy = isWhite ? val < 0 : val > 0;
+          if (enemyPos == null) {
+            if (isEnemy) {
+              enemyPos = [nr, nc];
+              step++;
+              continue;
+            } else {
+              break;
+            }
+          } else {
+            break;
+          }
+        }
+      }
+    } else {
+      final nr1 = curR + dr, nc1 = curC + dc;
+      final nr2 = curR + dr * 2, nc2 = curC + dc * 2;
+      if (!_inBounds(nr2, nc2)) continue;
+      if (!_inBounds(nr1, nc1)) continue;
+      final mid = board[nr1][nc1];
+      final land = board[nr2][nc2];
+      final isEnemyMid = mid != 0 && (isWhite ? mid < 0 : mid > 0);
+      if (isEnemyMid && land == 0) {
+        final nb = cloneBoard(board);
+        nb[nr1][nc1] = 0;
+        final newPath = [
+          ...path,
+          [nr2, nc2],
+        ];
+        final newCaptured = [
+          ...captured,
+          [nr1, nc1],
+        ];
+        final sub = _exploreCaptures(
+          nb,
+          nr2,
+          nc2,
+          isKing,
+          isWhite,
+          newPath,
+          newCaptured,
+        );
+        if (sub.isEmpty) {
+          moves.add(MoveOption(path: newPath, captured: newCaptured));
+        } else {
+          moves.addAll(sub);
+        }
+      }
+    }
+  }
+  return moves;
+}
+
+List<MoveOption> _simpleMoves(List<List<int>> board, bool isWhite) {
+  final List<MoveOption> moves = [];
+  for (int r = 0; r < boardSize; r++) {
+    for (int c = 0; c < boardSize; c++) {
+      final v = board[r][c];
+      if (v == 0) continue;
+      final pieceIsWhite = v > 0;
+      if (pieceIsWhite != isWhite) continue;
+      final isKing = v.abs() == 2;
+      if (isKing) {
+        for (final d in _dirs) {
+          int step = 1;
+          while (true) {
+            final nr = r + d[0] * step, nc = c + d[1] * step;
+            if (!_inBounds(nr, nc) || board[nr][nc] != 0) break;
+            moves.add(
+              MoveOption(
+                path: [
+                  [r, c],
+                  [nr, nc],
+                ],
+                captured: [],
+              ),
+            );
+            step++;
+          }
+        }
+      } else {
+        final fwd = isWhite ? 1 : -1;
+        final candidates = [
+          [r + fwd, c],
+          [r, c - 1],
+          [r, c + 1],
+        ];
+        for (final cand in candidates) {
+          final nr = cand[0], nc = cand[1];
+          if (_inBounds(nr, nc) && board[nr][nc] == 0) {
+            moves.add(
+              MoveOption(
+                path: [
+                  [r, c],
+                  [nr, nc],
+                ],
+                captured: [],
+              ),
+            );
+          }
+        }
+      }
+    }
+  }
+  return moves;
+}
+
+List<List<int>> applyMoveToBoard(List<List<int>> board, MoveOption m) {
+  final nb = cloneBoard(board);
+  final from = m.path.first;
+  final to = m.path.last;
+  int val = nb[from[0]][from[1]];
+  nb[from[0]][from[1]] = 0;
+  for (final cap in m.captured) {
+    nb[cap[0]][cap[1]] = 0;
+  }
+  if (val == 1 && to[0] == boardSize - 1) val = 2;
+  if (val == -1 && to[0] == 0) val = -2;
+  nb[to[0]][to[1]] = val;
+  return nb;
+}
+
+/// Gelismis degerlendirme fonksiyonu:
+/// - Malzeme (tas/dama degeri)
+/// - Merkez kontrolu
+/// - Hareket kabiliyeti (mobilite)
+/// - Damalarin serbestligi (ne kadar uzaga hareket edebiliyor)
+/// - Geri sira savunmasi (terfi hattinin korunmasi bonusu)
+int evaluateBoard(List<List<int>> board) {
+  int white = 0, black = 0;
+  int whiteKings = 0, blackKings = 0;
+
+  for (int r = 0; r < boardSize; r++) {
+    for (int c = 0; c < boardSize; c++) {
+      final v = board[r][c];
+      if (v == 0) continue;
+      final centerBonus = 4 - ((r - 3.5).abs() + (c - 3.5).abs()).round() ~/ 2;
+      if (v == 1) {
+        white += 100 + r * 3 + centerBonus;
+      } else if (v == 2) {
+        white += 340 + centerBonus * 2;
+        whiteKings++;
+      } else if (v == -1) {
+        black += 100 + (boardSize - 1 - r) * 3 + centerBonus;
+      } else if (v == -2) {
+        black += 340 + centerBonus * 2;
+        blackKings++;
+      }
+    }
+  }
+
+  // Mobilite: daha fazla oynanabilir hamlesi olan taraf avantajlidir.
+  final whiteMoves = getAllMoves(board, true).length;
+  final blackMoves = getAllMoves(board, false).length;
+  white += whiteMoves * 2;
+  black += blackMoves * 2;
+
+  // Dama ustunlugu tek basina cok guclu, kucuk ekstra bonus.
+  white += whiteKings * 15;
+  black += blackKings * 15;
+
+  return black - white;
+}
+
+class _SearchResult {
+  final int score;
+  final MoveOption? move;
+  _SearchResult(this.score, this.move);
+}
+
+int _negaMax(
+  List<List<int>> board,
+  int depth,
+  int alpha,
+  int beta,
+  bool blackToMove,
+  Stopwatch sw,
+  int timeBudgetMs,
+) {
+  if (sw.elapsedMilliseconds > timeBudgetMs) {
+    return blackToMove ? -evaluateBoard(board) : evaluateBoard(board);
+  }
+  final isWhite = !blackToMove;
+  final moves = getAllMoves(board, isWhite);
+  if (moves.isEmpty) {
+    return blackToMove ? -100000 - depth : 100000 + depth;
+  }
+  if (depth == 0) return evaluateBoard(board);
+  if (blackToMove) {
+    int maxEval = -1 << 30;
+    for (final m in moves) {
+      final nb = applyMoveToBoard(board, m);
+      final ev = _negaMax(nb, depth - 1, alpha, beta, false, sw, timeBudgetMs);
+      if (ev > maxEval) maxEval = ev;
+      if (maxEval > alpha) alpha = maxEval;
+      if (beta <= alpha) break;
+    }
+    return maxEval;
+  } else {
+    int minEval = 1 << 30;
+    for (final m in moves) {
+      final nb = applyMoveToBoard(board, m);
+      final ev = _negaMax(nb, depth - 1, alpha, beta, true, sw, timeBudgetMs);
+      if (ev < minEval) minEval = ev;
+      if (minEval < beta) beta = minEval;
+      if (beta <= alpha) break;
+    }
+    return minEval;
+  }
+}
+
+_SearchResult _searchAtDepth(
+  List<List<int>> board,
+  int depth,
+  bool isWhite,
+  Stopwatch sw,
+  int timeBudgetMs,
+) {
+  final moves = getAllMoves(board, isWhite);
+  if (moves.isEmpty) return _SearchResult(0, null);
+  MoveOption? bestMove;
+  int bestScore = isWhite ? (1 << 30) : (-1 << 30);
+  for (final m in moves) {
+    final nb = applyMoveToBoard(board, m);
+    final score = _negaMax(
+      nb,
+      depth - 1,
+      -1 << 30,
+      1 << 30,
+      isWhite,
+      sw,
+      timeBudgetMs,
+    );
+    if (isWhite) {
+      if (score < bestScore) {
+        bestScore = score;
+        bestMove = m;
+      }
+    } else {
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = m;
+      }
+    }
+    if (sw.elapsedMilliseconds > timeBudgetMs) break;
+  }
+  return _SearchResult(bestScore, bestMove ?? moves.first);
+}
+
+/// Genel amacli en iyi hamle bulucu — hem yapay zeka (isWhite:false) hem de
+/// oyuncuya ipucu (isWhite:true) icin kullanilir. compute() ile ayri
+/// isolate'te calisir, arayuzu kilitlemez.
+///
+/// Zaman butceli iteratif derinlesme: her zorluk seviyesi icin bir azami
+/// derinlik ve bir zaman butcesi (ms) tanimlanir. Derinlik 1'den baslanarak
+/// artirilir, sure dolana ya da azami derinlige ulasilana kadar en son
+/// tamamlanan derinligin sonucu kullanilir. Bu, sabit derinlige gore hem
+/// daha guclu hem de daha tutarli tepki suresi saglar.
+Map<String, dynamic> findBestMove(Map<String, dynamic> args) {
+  final rawBoard = args['board'] as List;
+  final board = rawBoard
+      .map<List<int>>((row) => (row as List).map<int>((e) => e as int).toList())
+      .toList();
+  final maxDepth = args['depth'] as int;
+  final isWhite = args['isWhite'] as bool;
+  final timeBudgetMs = (args['timeBudgetMs'] as int?) ?? 1500;
+
+  final moves = getAllMoves(board, isWhite);
+  if (moves.isEmpty) return {};
+  if (moves.length == 1) {
+    return {'path': moves.first.path, 'captured': moves.first.captured};
+  }
+
+  final sw = Stopwatch()..start();
+  MoveOption best = moves.first;
+
+  for (int d = 1; d <= maxDepth; d++) {
+    final result = _searchAtDepth(board, d, isWhite, sw, timeBudgetMs);
+    if (result.move != null) best = result.move!;
+    if (sw.elapsedMilliseconds > timeBudgetMs) break;
+    // Kesin kazanan/kaybeden bir sonuc bulunduysa daha fazla aramaya gerek yok.
+    if (result.score.abs() > 90000) break;
+  }
+
+  return {'path': best.path, 'captured': best.captured};
+}
+
+String posToAlgebraic(List<int> pos) =>
+    '${String.fromCharCode(97 + pos[1])}${pos[0] + 1}';
+
+// =======================================================================
+// ARAYUZ
+// =======================================================================
+
+class GameScreen extends StatefulWidget {
+  const GameScreen({super.key});
+  @override
+  State<GameScreen> createState() => _GameScreenState();
+}
+
+class _GameScreenState extends State<GameScreen> {
+  late Map<int, Piece> pieces;
+  late List<List<int>> idGrid;
+  int nextId = 0;
+  bool whiteTurn = true;
+  bool isAiThinking = false;
+  bool isHintLoading = false;
+  int? selectedId;
+  List<MoveOption> selectableMoves = [];
+  List<MoveOption> currentPieceMoves = [];
+  bool gameOver = false;
+  String? statusMessage;
+  int difficulty = 4;
+  List<int> lastMoveHighlight = [];
+  MoveOption? hintMove;
+  List<String> moveLog = [];
+  final List<GameSnapshot> _history = [];
+  int totalMoves = 0;
+  bool soundOn = true;
+
+  Timer? _clockTimer;
+  Duration elapsed = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupBoard();
+    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!gameOver && mounted) {
+        setState(() => elapsed += const Duration(seconds: 1));
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _clockTimer?.cancel();
+    super.dispose();
+  }
+
+  // Zorluga gore azami arama derinligi ve zaman butcesi (ms).
+  int get _maxDepthForDifficulty {
+    switch (difficulty) {
+      case 2:
+        return 6;
+      case 4:
+        return 9;
+      case 6:
+        return 12;
+      default:
+        return 8;
+    }
+  }
+
+  int get _timeBudgetForDifficulty {
+    switch (difficulty) {
+      case 2:
+        return 500;
+      case 4:
+        return 1500;
+      case 6:
+        return 3200;
+      default:
+        return 1200;
+    }
+  }
+
+  void _setupBoard() {
+    pieces = {};
+    idGrid = List.generate(boardSize, (_) => List.filled(boardSize, -1));
+    nextId = 0;
+    for (final r in [1, 2]) {
+      for (int c = 0; c < boardSize; c++) {
+        final p = Piece(id: nextId, row: r, col: c, isWhite: true);
+        pieces[nextId] = p;
+        idGrid[r][c] = nextId;
+        nextId++;
+      }
+    }
+    for (final r in [5, 6]) {
+      for (int c = 0; c < boardSize; c++) {
+        final p = Piece(id: nextId, row: r, col: c, isWhite: false);
+        pieces[nextId] = p;
+        idGrid[r][c] = nextId;
+        nextId++;
+      }
+    }
+    whiteTurn = true;
+    selectedId = null;
+    currentPieceMoves = [];
+    gameOver = false;
+    statusMessage = null;
+    lastMoveHighlight = [];
+    hintMove = null;
+    moveLog = [];
+    totalMoves = 0;
+    elapsed = Duration.zero;
+    _history.clear();
+    _refreshLegalMoves();
+  }
+
+  List<List<int>> get valueBoard {
+    final b = List.generate(boardSize, (_) => List.filled(boardSize, 0));
+    for (int r = 0; r < boardSize; r++) {
+      for (int c = 0; c < boardSize; c++) {
+        final id = idGrid[r][c];
+        if (id != -1) {
+          final p = pieces[id]!;
+          b[r][c] = p.isWhite ? (p.isKing ? 2 : 1) : (p.isKing ? -2 : -1);
+        }
+      }
+    }
+    return b;
+  }
+
+  bool get mustCapture => selectableMoves.any((m) => m.isCapture);
+
+  void _refreshLegalMoves() {
+    selectableMoves = getAllMoves(valueBoard, whiteTurn);
+    if (selectableMoves.isEmpty) {
+      gameOver = true;
+      statusMessage = whiteTurn ? 'Yapay Zeka Kazandı' : 'Kazandınız!';
+    }
+  }
+
+  Map<int, Piece> _deepCopyPieces() => {
+    for (final e in pieces.entries) e.key: e.value.copy(),
+  };
+
+  void _pushSnapshot() {
+    _history.add(
+      GameSnapshot(
+        _deepCopyPieces(),
+        idGrid.map((r) => List<int>.from(r)).toList(),
+        whiteTurn,
+        List<String>.from(moveLog),
+      ),
+    );
+    if (_history.length > 60) _history.removeAt(0);
+  }
+
+  void _undo() {
+    if (isAiThinking || _history.isEmpty) return;
+    GameSnapshot target;
+    if (_history.length >= 2 && _history.last.whiteTurn == false) {
+      target = _history[_history.length - 2];
+      _history.removeRange(_history.length - 2, _history.length);
+    } else {
+      target = _history.removeLast();
+    }
+    setState(() {
+      pieces = target.pieces;
+      idGrid = target.idGrid;
+      whiteTurn = target.whiteTurn;
+      moveLog = target.moveLog;
+      selectedId = null;
+      currentPieceMoves = [];
+      gameOver = false;
+      statusMessage = null;
+      hintMove = null;
+      lastMoveHighlight = [];
+      _refreshLegalMoves();
+    });
+  }
+
+  void _playSound(SystemSoundType type) {
+    if (soundOn) SystemSound.play(type);
+  }
+
+  void _haptic(void Function() fn) {
+    if (soundOn) fn();
+  }
+
+  void _onCellTap(int r, int c) {
+    if (gameOver || !whiteTurn || isAiThinking) return;
+    if (hintMove != null) setState(() => hintMove = null);
+    final id = idGrid[r][c];
+    if (selectedId == null) {
+      if (id == -1) return;
+      final p = pieces[id]!;
+      if (!p.isWhite) return;
+      final movesForPiece = selectableMoves
+          .where((m) => m.from[0] == r && m.from[1] == c)
+          .toList();
+      if (movesForPiece.isEmpty) return;
+      setState(() {
+        selectedId = id;
+        currentPieceMoves = movesForPiece;
+      });
+    } else {
+      final match = currentPieceMoves
+          .where((m) => m.to[0] == r && m.to[1] == c)
+          .toList();
+      if (match.isNotEmpty) {
+        final move = match.first;
+        setState(() {
+          selectedId = null;
+          currentPieceMoves = [];
+        });
+        _pushSnapshot();
+        _performMove(move, true);
+        return;
+      }
+      if (id != -1 && pieces[id]!.isWhite) {
+        final movesForPiece = selectableMoves
+            .where((m) => m.from[0] == r && m.from[1] == c)
+            .toList();
+        if (movesForPiece.isNotEmpty) {
+          setState(() {
+            selectedId = id;
+            currentPieceMoves = movesForPiece;
+          });
+          return;
+        }
+      }
+      setState(() {
+        selectedId = null;
+        currentPieceMoves = [];
+      });
+    }
+  }
+
+  Future<void> _performMove(MoveOption move, bool isWhite) async {
+    final pieceId = idGrid[move.path[0][0]][move.path[0][1]];
+    if (pieceId == -1) return;
+    _haptic(HapticFeedback.selectionClick);
+    _playSound(SystemSoundType.click);
+    for (int i = 1; i < move.path.length; i++) {
+      final from = move.path[i - 1];
+      final to = move.path[i];
+      setState(() {
+        idGrid[from[0]][from[1]] = -1;
+        idGrid[to[0]][to[1]] = pieceId;
+        pieces[pieceId]!.row = to[0];
+        pieces[pieceId]!.col = to[1];
+        lastMoveHighlight = [from[0], from[1], to[0], to[1]];
+      });
+      await Future.delayed(const Duration(milliseconds: 260));
+      if (move.captured.length > i - 1) {
+        final capPos = move.captured[i - 1];
+        final capId = idGrid[capPos[0]][capPos[1]];
+        if (capId != -1) {
+          _haptic(HapticFeedback.lightImpact);
+          setState(() {
+            pieces[capId]!.alive = false;
+            idGrid[capPos[0]][capPos[1]] = -1;
+          });
+          await Future.delayed(const Duration(milliseconds: 240));
+        }
+      }
+    }
+    final lastPos = move.path.last;
+    final p = pieces[pieceId]!;
+    bool promoted = false;
+    if (!p.isKing &&
+        ((isWhite && lastPos[0] == boardSize - 1) ||
+            (!isWhite && lastPos[0] == 0))) {
+      setState(() {
+        p.isKing = true;
+      });
+      _haptic(HapticFeedback.mediumImpact);
+      promoted = true;
+    }
+
+    final notation =
+        '${posToAlgebraic(move.path.first)}${move.isCapture ? 'x' : '-'}${posToAlgebraic(move.path.last)}${promoted ? '★' : ''}';
+
+    setState(() {
+      pieces.removeWhere((key, value) => !value.alive);
+      whiteTurn = !whiteTurn;
+      totalMoves++;
+      moveLog.add('${isWhite ? 'Siz' : 'YZ'}: $notation');
+      _refreshLegalMoves();
+    });
+
+    if (!gameOver && !whiteTurn) {
+      _aiMove();
+    }
+  }
+
+  Future<void> _aiMove() async {
+    setState(() {
+      isAiThinking = true;
+    });
+    _pushSnapshot();
+    await Future.delayed(const Duration(milliseconds: 350));
+    final result = await compute(findBestMove, {
+      'board': valueBoard,
+      'isWhite': false,
+      'depth': _maxDepthForDifficulty,
+      'timeBudgetMs': _timeBudgetForDifficulty,
+    });
+    if (result.isEmpty) {
+      setState(() {
+        isAiThinking = false;
+      });
+      return;
+    }
+    final path = (result['path'] as List)
+        .map<List<int>>((e) => (e as List).map<int>((x) => x as int).toList())
+        .toList();
+    final captured = (result['captured'] as List)
+        .map<List<int>>((e) => (e as List).map<int>((x) => x as int).toList())
+        .toList();
+    final move = MoveOption(path: path, captured: captured);
+    setState(() {
+      isAiThinking = false;
+    });
+    await _performMove(move, false);
+  }
+
+  Future<void> _showHint() async {
+    if (!whiteTurn || isAiThinking || gameOver || isHintLoading) return;
+    setState(() => isHintLoading = true);
+    final result = await compute(findBestMove, {
+      'board': valueBoard,
+      'isWhite': true,
+      'depth': min(_maxDepthForDifficulty, 8),
+      'timeBudgetMs': 1200,
+    });
+    if (!mounted) return;
+    setState(() {
+      isHintLoading = false;
+      if (result.isNotEmpty) {
+        final path = (result['path'] as List)
+            .map<List<int>>(
+              (e) => (e as List).map<int>((x) => x as int).toList(),
+            )
+            .toList();
+        final captured = (result['captured'] as List)
+            .map<List<int>>(
+              (e) => (e as List).map<int>((x) => x as int).toList(),
+            )
+            .toList();
+        hintMove = MoveOption(path: path, captured: captured);
+      }
+    });
+    Future.delayed(const Duration(seconds: 4), () {
+      if (mounted) setState(() => hintMove = null);
+    });
+  }
+
+  void _restart() {
+    setState(() {
+      _setupBoard();
+    });
+  }
+
+  String get _elapsedText {
+    final m = elapsed.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.center,
+              radius: 1.3,
+              colors: [Color(0xFF15342A), Color(0xFF060F0B)],
+            ),
+          ),
+          child: Stack(
+            children: [
+              CustomPaint(
+                size: Size.infinite,
+                painter: _BackgroundTexturePainter(),
+              ),
+              Column(
+                children: [
+                  _buildTopBar(),
+                  if (mustCapture && whiteTurn && !gameOver)
+                    _buildCaptureBanner(),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(flex: 3, child: _buildSidePanel(true)),
+                        Expanded(
+                          flex: 6,
+                          child: Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: AspectRatio(
+                                aspectRatio: 1,
+                                child: _buildBoardFrame(),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(flex: 3, child: _buildSidePanel(false)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (gameOver) _buildGameOverOverlay(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCaptureBanner() {
+    return AnimatedOpacity(
+      opacity: 1,
+      duration: const Duration(milliseconds: 200),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE53935).withOpacity(0.18),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFE53935).withOpacity(0.6)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(
+              Icons.priority_high_rounded,
+              color: Color(0xFFE53935),
+              size: 16,
+            ),
+            SizedBox(width: 6),
+            Text(
+              'Yeme zorunlu! En fazla taş yiyen hamleyi oynamalısınız.',
+              style: TextStyle(
+                color: Color(0xFFFFCDD2),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(
+        children: [
+          ShaderMask(
+            shaderCallback: (bounds) => const LinearGradient(
+              colors: [Color(0xFFFFE9A8), Color(0xFFC9A227)],
+            ).createShader(bounds),
+            child: const Text(
+              'DAMA PRO',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 4,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.timer_outlined,
+                  size: 12,
+                  color: Colors.white54,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _elapsedText,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: SizedBox(
+              height: 26,
+              child: moveLog.isEmpty
+                  ? Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Hamleler burada görünecek',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.25),
+                          fontSize: 11,
+                        ),
+                      ),
+                    )
+                  : ListView(
+                      scrollDirection: Axis.horizontal,
+                      reverse: true,
+                      children: moveLog.reversed.take(8).toList().reversed.map((
+                        m,
+                      ) {
+                        final isLast = m == moveLog.last;
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isLast
+                                ? const Color(0xFFC9A227).withOpacity(0.85)
+                                : Colors.white10,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            m,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              color: isLast ? Colors.black : Colors.white60,
+                              fontWeight: isLast
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+            ),
+          ),
+          IconButton(
+            tooltip: soundOn ? 'Sesi kapat' : 'Sesi aç',
+            icon: Icon(
+              soundOn ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+              color: Colors.white54,
+              size: 20,
+            ),
+            onPressed: () => setState(() => soundOn = !soundOn),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGameOverOverlay() {
+    final won = statusMessage == 'Kazandınız!';
+    return Container(
+      color: Colors.black.withOpacity(0.8),
+      child: Center(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.elasticOut,
+          builder: (context, val, child) =>
+              Transform.scale(scale: val, child: child),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 30),
+            decoration: BoxDecoration(
+              color: const Color(0xFF122A21),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0xFFC9A227), width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFC9A227).withOpacity(0.25),
+                  blurRadius: 40,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  won ? Icons.emoji_events : Icons.emoji_events_outlined,
+                  color: const Color(0xFFC9A227),
+                  size: 60,
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  statusMessage ?? '',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '$totalMoves hamlede • $_elapsedText',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.5),
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFC9A227),
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 30,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  onPressed: _restart,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text(
+                    'Tekrar Oyna',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBoardFrame() {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFC9A227).withOpacity(0.15),
+                blurRadius: 60,
+                spreadRadius: 8,
+              ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.7),
+                blurRadius: 30,
+                offset: const Offset(0, 14),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFE9C766), Color(0xFF9A7415), Color(0xFFE9C766)],
+            ),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              color: const Color(0xFF1B120A),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: _buildBoard(),
+            ),
+          ),
+        ),
+        for (final align in [
+          Alignment.topLeft,
+          Alignment.topRight,
+          Alignment.bottomLeft,
+          Alignment.bottomRight,
+        ])
+          Align(
+            alignment: align,
+            child: Transform.rotate(
+              angle: pi / 4,
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE9C766),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.5),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildBoard() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cell = constraints.maxWidth / boardSize;
+        return Stack(
+          children: [
+            Column(
+              children: List.generate(boardSize, (screenRow) {
+                final boardRow = boardSize - 1 - screenRow;
+                return Row(
+                  children: List.generate(boardSize, (col) {
+                    final isDark = (boardRow + col) % 2 == 0;
+                    final isLastMove =
+                        lastMoveHighlight.length == 4 &&
+                        ((lastMoveHighlight[0] == boardRow &&
+                                lastMoveHighlight[1] == col) ||
+                            (lastMoveHighlight[2] == boardRow &&
+                                lastMoveHighlight[3] == col));
+                    final isValidDest = currentPieceMoves.any(
+                      (m) => m.to[0] == boardRow && m.to[1] == col,
+                    );
+                    final isCaptureDest = currentPieceMoves.any(
+                      (m) =>
+                          m.to[0] == boardRow && m.to[1] == col && m.isCapture,
+                    );
+                    final isHintSquare =
+                        hintMove != null &&
+                        ((hintMove!.from[0] == boardRow &&
+                                hintMove!.from[1] == col) ||
+                            (hintMove!.to[0] == boardRow &&
+                                hintMove!.to[1] == col));
+                    return GestureDetector(
+                      onTap: () => _onCellTap(boardRow, col),
+                      child: Container(
+                        width: cell,
+                        height: cell,
+                        decoration: BoxDecoration(
+                          gradient: isDark
+                              ? const LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Color(0xFF4A2F21),
+                                    Color(0xFF2E1B12),
+                                  ],
+                                )
+                              : const LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Color(0xFFE6CBA1),
+                                    Color(0xFFD1AE7C),
+                                  ],
+                                ),
+                        ),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            if (col == 0)
+                              Positioned(
+                                top: 2,
+                                left: 3,
+                                child: Text(
+                                  '${boardRow + 1}',
+                                  style: TextStyle(
+                                    fontSize: cell * 0.16,
+                                    color:
+                                        (isDark ? Colors.white : Colors.black)
+                                            .withOpacity(0.35),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            if (boardRow == 0)
+                              Positioned(
+                                bottom: 2,
+                                right: 4,
+                                child: Text(
+                                  String.fromCharCode(97 + col),
+                                  style: TextStyle(
+                                    fontSize: cell * 0.16,
+                                    color:
+                                        (isDark ? Colors.white : Colors.black)
+                                            .withOpacity(0.35),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            if (isLastMove)
+                              Container(
+                                color: const Color(
+                                  0xFFC9A227,
+                                ).withOpacity(0.25),
+                              ),
+                            if (isHintSquare)
+                              _PulseGlow(
+                                color: const Color(0xFF42A5F5),
+                                size: cell * 0.9,
+                              ),
+                            if (isValidDest)
+                              _PulseGlow(
+                                color: isCaptureDest
+                                    ? const Color(0xFFE53935)
+                                    : const Color(0xFF43A047),
+                                size: cell * (isCaptureDest ? 0.6 : 0.32),
+                                filled: !isCaptureDest,
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                );
+              }),
+            ),
+            if (hintMove != null)
+              IgnorePointer(
+                child: CustomPaint(
+                  size: Size(cell * boardSize, cell * boardSize),
+                  painter: _ArrowPainter(
+                    from: Offset(
+                      hintMove!.from[1] * cell + cell / 2,
+                      (boardSize - 1 - hintMove!.from[0]) * cell + cell / 2,
+                    ),
+                    to: Offset(
+                      hintMove!.to[1] * cell + cell / 2,
+                      (boardSize - 1 - hintMove!.to[0]) * cell + cell / 2,
+                    ),
+                  ),
+                ),
+              ),
+            IgnorePointer(
+              child: Stack(
+                children: pieces.values
+                    .map((p) => _buildAnimatedPiece(p, cell))
+                    .toList(),
+              ),
+            ),
+            Stack(
+              children: pieces.values
+                  .where((p) => p.alive)
+                  .map((p) => _buildTapArea(p, cell))
+                  .toList(),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTapArea(Piece p, double cell) {
+    final screenRow = boardSize - 1 - p.row;
+    return AnimatedPositioned(
+      key: ValueKey('tap_${p.id}'),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeInOutCubic,
+      left: p.col * cell,
+      top: screenRow * cell,
+      width: cell,
+      height: cell,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => _onCellTap(p.row, p.col),
+      ),
+    );
+  }
+
+  Widget _buildAnimatedPiece(Piece p, double cell) {
+    final screenRow = boardSize - 1 - p.row;
+    final isSelectedPiece = selectedId == p.id;
+    return AnimatedPositioned(
+      key: ValueKey('piece_${p.id}'),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeInOutCubic,
+      left: p.col * cell,
+      top: screenRow * cell,
+      width: cell,
+      height: cell,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 260),
+        opacity: p.alive ? 1.0 : 0.0,
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutBack,
+          scale: isSelectedPiece ? 1.12 : (p.alive ? 1.0 : 0.3),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Align(
+                alignment: const Alignment(0, 0.72),
+                child: Container(
+                  width: cell * 0.62,
+                  height: cell * 0.16,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.5),
+                        blurRadius: cell * 0.14,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.all(cell * 0.1),
+                child: _PieceVisual(
+                  isWhite: p.isWhite,
+                  isKing: p.isKing,
+                  cellSize: cell,
+                  glow: isSelectedPiece,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSidePanel(bool isPlayer) {
+    final opponentAlive = pieces.values
+        .where((p) => p.isWhite != isPlayer)
+        .length;
+    final capturedList = List.generate(16 - opponentAlive, (_) => 0);
+    final isActive =
+        !gameOver && ((isPlayer && whiteTurn) || (!isPlayer && !whiteTurn));
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white.withOpacity(0.06),
+            Colors.white.withOpacity(0.02),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isActive
+              ? const Color(0xFFC9A227)
+              : Colors.white.withOpacity(0.12),
+          width: isActive ? 2 : 1,
+        ),
+        boxShadow: isActive
+            ? [
+                BoxShadow(
+                  color: const Color(0xFFC9A227).withOpacity(0.28),
+                  blurRadius: 20,
+                ),
+              ]
+            : [],
+      ),
+      child: Column(
+        children: [
+          _PulsingAvatar(isPlayer: isPlayer, active: isActive),
+          const SizedBox(height: 8),
+          Text(
+            isPlayer ? 'Siz' : 'Yapay Zeka',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+            ),
+          ),
+          if (isAiThinking && !isPlayer)
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 11,
+                    height: 11,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFFC9A227),
+                    ),
+                  ),
+                  SizedBox(width: 6),
+                  Text(
+                    'düşünüyor...',
+                    style: TextStyle(color: Colors.white54, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 22,
+            child: capturedList.isEmpty
+                ? Text(
+                    'Henüz yok',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.3),
+                      fontSize: 10,
+                    ),
+                  )
+                : Wrap(
+                    spacing: -6,
+                    children: capturedList
+                        .take(16)
+                        .map(
+                          (_) => Container(
+                            width: 16,
+                            height: 16,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: isPlayer
+                                    ? [
+                                        const Color(0xFF616161),
+                                        const Color(0xFF1A1A1A),
+                                      ]
+                                    : [
+                                        const Color(0xFFFFFDF5),
+                                        const Color(0xFFC9B896),
+                                      ],
+                              ),
+                              border: Border.all(
+                                color: Colors.black38,
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+          ),
+          const Spacer(),
+          if (isPlayer) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: _panelButton(
+                    icon: Icons.undo_rounded,
+                    label: 'Geri Al',
+                    onPressed: (_history.isEmpty || isAiThinking)
+                        ? null
+                        : _undo,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _panelButton(
+                    icon: Icons.lightbulb_outline_rounded,
+                    label: isHintLoading ? '...' : 'İpucu',
+                    onPressed:
+                        (!whiteTurn ||
+                            isAiThinking ||
+                            gameOver ||
+                            isHintLoading)
+                        ? null
+                        : _showHint,
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            const Text(
+              'Zorluk',
+              style: TextStyle(color: Colors.white54, fontSize: 11),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 4,
+              runSpacing: 4,
+              children: [
+                _diffChip('Kolay', 2),
+                _diffChip('Orta', 4),
+                _diffChip('Zor', 6),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFC9A227),
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+              onPressed: _restart,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Yeni Oyun', style: TextStyle(fontSize: 12)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _panelButton({
+    required IconData icon,
+    required String label,
+    VoidCallback? onPressed,
+  }) {
+    final enabled = onPressed != null;
+    return OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: enabled ? const Color(0xFFC9A227) : Colors.white24,
+        side: BorderSide(
+          color: enabled ? const Color(0xFFC9A227) : Colors.white12,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16),
+      label: Text(label, style: const TextStyle(fontSize: 11)),
+    );
+  }
+
+  Widget _diffChip(String label, int value) {
+    final selected = difficulty == value;
+    return GestureDetector(
+      onTap: () => setState(() => difficulty = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFC9A227) : Colors.white10,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: selected ? Colors.black : Colors.white70,
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// =======================================================================
+// GORSEL BILESENLER
+// =======================================================================
+
+class _PieceVisual extends StatelessWidget {
+  final bool isWhite;
+  final bool isKing;
+  final double cellSize;
+  final bool glow;
+  const _PieceVisual({
+    required this.isWhite,
+    required this.isKing,
+    required this.cellSize,
+    this.glow = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final baseColors = isWhite
+        ? [
+            const Color(0xFFFFFCF2),
+            const Color(0xFFE8D4A9),
+            const Color(0xFFB89968),
+          ]
+        : [
+            const Color(0xFF565656),
+            const Color(0xFF262626),
+            const Color(0xFF060606),
+          ];
+    final ringColor = isWhite
+        ? const Color(0xFF7A5324)
+        : const Color(0xFF000000);
+
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [
+          if (glow)
+            BoxShadow(
+              color: const Color(0xFFC9A227).withOpacity(0.85),
+              blurRadius: cellSize * 0.25,
+              spreadRadius: 1,
+            ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.55),
+            blurRadius: 5,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Container(
+        margin: EdgeInsets.all(cellSize * 0.015),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: ringColor, width: cellSize * 0.045),
+          gradient: RadialGradient(
+            colors: baseColors,
+            stops: const [0.0, 0.65, 1.0],
+            center: const Alignment(-0.3, -0.35),
+            radius: 1.0,
+          ),
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              margin: EdgeInsets.all(cellSize * 0.13),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: (isWhite ? Colors.black : Colors.white).withOpacity(
+                    0.15,
+                  ),
+                  width: 1,
+                ),
+              ),
+            ),
+            Positioned(
+              top: cellSize * 0.1,
+              left: cellSize * 0.14,
+              child: Container(
+                width: cellSize * 0.24,
+                height: cellSize * 0.11,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(isWhite ? 0.55 : 0.22),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ),
+            if (isKing)
+              Icon(
+                Icons.star_rounded,
+                color: const Color(0xFFC9A227),
+                size: cellSize * 0.4,
+                shadows: [
+                  Shadow(color: Colors.black.withOpacity(0.6), blurRadius: 3),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PulseGlow extends StatefulWidget {
+  final Color color;
+  final double size;
+  final bool filled;
+  const _PulseGlow({
+    required this.color,
+    required this.size,
+    this.filled = false,
+  });
+  @override
+  State<_PulseGlow> createState() => _PulseGlowState();
+}
+
+class _PulseGlowState extends State<_PulseGlow>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, child) {
+        final t = 0.85 + _ctrl.value * 0.25;
+        return Container(
+          width: widget.size * t,
+          height: widget.size * t,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: widget.filled
+                ? widget.color.withOpacity(0.75)
+                : Colors.transparent,
+            border: widget.filled
+                ? null
+                : Border.all(color: widget.color.withOpacity(0.85), width: 3),
+            boxShadow: [
+              BoxShadow(color: widget.color.withOpacity(0.5), blurRadius: 10),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PulsingAvatar extends StatefulWidget {
+  final bool isPlayer;
+  final bool active;
+  const _PulsingAvatar({required this.isPlayer, required this.active});
+  @override
+  State<_PulsingAvatar> createState() => _PulsingAvatarState();
+}
+
+class _PulsingAvatarState extends State<_PulsingAvatar>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, child) {
+        final ringOpacity = widget.active ? 0.3 + _ctrl.value * 0.5 : 0.0;
+        return Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: const Color(0xFFC9A227).withOpacity(ringOpacity),
+              width: 3,
+            ),
+          ),
+          child: CircleAvatar(
+            radius: 24,
+            backgroundColor: widget.isPlayer
+                ? Colors.white
+                : const Color(0xFF1A1A1A),
+            child: Icon(
+              widget.isPlayer ? Icons.person : Icons.smart_toy,
+              color: widget.isPlayer ? Colors.black87 : Colors.white,
+              size: 22,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ArrowPainter extends CustomPainter {
+  final Offset from;
+  final Offset to;
+  _ArrowPainter({required this.from, required this.to});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (from == to) return;
+    final paint = Paint()
+      ..color = const Color(0xFF42A5F5).withOpacity(0.85)
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(from, to, paint);
+    final angle = (to - from).direction;
+    const arrowSize = 14.0;
+    final p1 =
+        to -
+        Offset(
+          cos(angle - pi / 7) * arrowSize,
+          sin(angle - pi / 7) * arrowSize,
+        );
+    final p2 =
+        to -
+        Offset(
+          cos(angle + pi / 7) * arrowSize,
+          sin(angle + pi / 7) * arrowSize,
+        );
+    final headPaint = Paint()
+      ..color = const Color(0xFF42A5F5).withOpacity(0.95);
+    final path = Path()
+      ..moveTo(to.dx, to.dy)
+      ..lineTo(p1.dx, p1.dy)
+      ..lineTo(p2.dx, p2.dy)
+      ..close();
+    canvas.drawPath(path, headPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ArrowPainter oldDelegate) =>
+      oldDelegate.from != from || oldDelegate.to != to;
+}
+
+class _BackgroundTexturePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.015)
+      ..strokeWidth = 1;
+    const gap = 34.0;
+    for (double x = -size.height; x < size.width; x += gap) {
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x + size.height, size.height),
+        paint,
+      );
+    }
+    final vignette = Paint()
+      ..shader = RadialGradient(
+        colors: [Colors.transparent, Colors.black.withOpacity(0.45)],
+        radius: 1.1,
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), vignette);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
