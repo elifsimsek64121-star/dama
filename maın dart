@@ -26,10 +26,358 @@ class DamaApp extends StatelessWidget {
         colorSchemeSeed: const Color(0xFFC9A227),
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF07130E),
+        fontFamily: 'Roboto',
       ),
       home: const SplashScreen(),
     );
   }
+}
+
+// =======================================================================
+// OYUNCU İSTATİSTİKLERİ (uygulama açıkken kalıcı, in-memory singleton)
+// =======================================================================
+
+class PlayerStats {
+  PlayerStats._();
+  static int wins = 0;
+  static int losses = 0;
+  static int gamesPlayed = 0;
+  static int currentStreak = 0;
+  static int bestStreak = 0;
+  static int totalMovesPlayed = 0;
+
+  static double get winRate =>
+      gamesPlayed == 0 ? 0 : (wins / gamesPlayed) * 100;
+
+  static void recordWin() {
+    wins++;
+    gamesPlayed++;
+    currentStreak++;
+    if (currentStreak > bestStreak) bestStreak = currentStreak;
+  }
+
+  static void recordLoss() {
+    losses++;
+    gamesPlayed++;
+    currentStreak = 0;
+  }
+
+  static void reset() {
+    wins = 0;
+    losses = 0;
+    gamesPlayed = 0;
+    currentStreak = 0;
+    bestStreak = 0;
+    totalMovesPlayed = 0;
+  }
+}
+
+// =======================================================================
+// PREMIUM (Dama Pro) — uygulama içi demo abonelik durumu.
+// Not: Gerçek bir mağaza satın alması için `in_app_purchase` paketiyle
+// entegre edilmelidir; burada tek dosyalık teslim için demo bir anahtar
+// kullanılmıştır.
+// =======================================================================
+
+class Premium {
+  Premium._();
+  static bool isPremium = false;
+}
+
+// =======================================================================
+// TAHTA TEMALARI — 3 ücretsiz + 6 Pro tema
+// =======================================================================
+
+class BoardTheme {
+  final String name;
+  final IconData icon;
+  final Color darkTop;
+  final Color darkBottom;
+  final Color lightTop;
+  final Color lightBottom;
+  final Color accent;
+  final Color frameA;
+  final Color frameB;
+  final bool premium;
+  const BoardTheme({
+    required this.name,
+    required this.icon,
+    required this.darkTop,
+    required this.darkBottom,
+    required this.lightTop,
+    required this.lightBottom,
+    required this.accent,
+    required this.frameA,
+    required this.frameB,
+    required this.premium,
+  });
+}
+
+const List<BoardTheme> kBoardThemes = [
+  BoardTheme(
+    name: 'Klasik Ahşap',
+    icon: Icons.forest_rounded,
+    darkTop: Color(0xFF4A2F21),
+    darkBottom: Color(0xFF2E1B12),
+    lightTop: Color(0xFFE6CBA1),
+    lightBottom: Color(0xFFD1AE7C),
+    accent: Color(0xFFC9A227),
+    frameA: Color(0xFFE9C766),
+    frameB: Color(0xFF9A7415),
+    premium: false,
+  ),
+  BoardTheme(
+    name: 'Okyanus',
+    icon: Icons.waves_rounded,
+    darkTop: Color(0xFF0D3B57),
+    darkBottom: Color(0xFF082433),
+    lightTop: Color(0xFFBEE7F5),
+    lightBottom: Color(0xFF8FCBE0),
+    accent: Color(0xFF29B6F6),
+    frameA: Color(0xFF6FD8F7),
+    frameB: Color(0xFF14607D),
+    premium: false,
+  ),
+  BoardTheme(
+    name: 'Karanlık',
+    icon: Icons.dark_mode_rounded,
+    darkTop: Color(0xFF1B1B1F),
+    darkBottom: Color(0xFF08080A),
+    lightTop: Color(0xFF3D3D45),
+    lightBottom: Color(0xFF2A2A30),
+    accent: Color(0xFF9C6BFF),
+    frameA: Color(0xFFB79AFF),
+    frameB: Color(0xFF4B2E8C),
+    premium: false,
+  ),
+  BoardTheme(
+    name: 'Kraliyet',
+    icon: Icons.diamond_rounded,
+    darkTop: Color(0xFF5C0E1E),
+    darkBottom: Color(0xFF34060F),
+    lightTop: Color(0xFFF3D9B1),
+    lightBottom: Color(0xFFE0BC85),
+    accent: Color(0xFFE0304A),
+    frameA: Color(0xFFFFD98A),
+    frameB: Color(0xFF9A7415),
+    premium: true,
+  ),
+  BoardTheme(
+    name: 'Zümrüt',
+    icon: Icons.eco_rounded,
+    darkTop: Color(0xFF10462E),
+    darkBottom: Color(0xFF07281A),
+    lightTop: Color(0xFFCFEBD6),
+    lightBottom: Color(0xFFA9D6B3),
+    accent: Color(0xFF2ECC71),
+    frameA: Color(0xFF7BE3A0),
+    frameB: Color(0xFF17663D),
+    premium: true,
+  ),
+  BoardTheme(
+    name: 'Mercan',
+    icon: Icons.favorite_rounded,
+    darkTop: Color(0xFF7A2E2E),
+    darkBottom: Color(0xFF4A1616),
+    lightTop: Color(0xFFFFD9CF),
+    lightBottom: Color(0xFFF3B3A0),
+    accent: Color(0xFFFF6F59),
+    frameA: Color(0xFFFFA894),
+    frameB: Color(0xFF8C3626),
+    premium: true,
+  ),
+  BoardTheme(
+    name: 'Gece Mavisi',
+    icon: Icons.nightlight_round,
+    darkTop: Color(0xFF10163A),
+    darkBottom: Color(0xFF060819),
+    lightTop: Color(0xFF3B4577),
+    lightBottom: Color(0xFF262E58),
+    accent: Color(0xFF5C7CFA),
+    frameA: Color(0xFF7C93FF),
+    frameB: Color(0xFF2C3B84),
+    premium: true,
+  ),
+  BoardTheme(
+    name: 'Bronz',
+    icon: Icons.hexagon_rounded,
+    darkTop: Color(0xFF4A3418),
+    darkBottom: Color(0xFF2A1D0D),
+    lightTop: Color(0xFFCB9D5D),
+    lightBottom: Color(0xFFAB7E42),
+    accent: Color(0xFFCD7F32),
+    frameA: Color(0xFFE0A868),
+    frameB: Color(0xFF7A501F),
+    premium: true,
+  ),
+  BoardTheme(
+    name: 'Elmas',
+    icon: Icons.auto_awesome_rounded,
+    darkTop: Color(0xFF2C3E50),
+    darkBottom: Color(0xFF141E28),
+    lightTop: Color(0xFFE8F6FF),
+    lightBottom: Color(0xFFC6E6F5),
+    accent: Color(0xFFB9F2FF),
+    frameA: Color(0xFFDFFBFF),
+    frameB: Color(0xFF5A8CA0),
+    premium: true,
+  ),
+];
+
+// =======================================================================
+// OYUN VARYANTLARI — Türk Daması (ücretsiz) + 3 uluslararası varyant (Pro)
+// =======================================================================
+
+class VariantConfig {
+  final String id;
+  final String name;
+  final String shortName;
+  final String description;
+  final int size;
+  final bool diagonal; // taşlar çapraz mı yoksa düz mü ilerler
+  final bool manCaptureBackward; // normal taş geriye de yiyebilir mi
+  final bool flyingKing; // dama uzun mesafe (kale gibi) mi hareket eder
+  final bool premium;
+  final IconData icon;
+  const VariantConfig({
+    required this.id,
+    required this.name,
+    required this.shortName,
+    required this.description,
+    required this.size,
+    required this.diagonal,
+    required this.manCaptureBackward,
+    required this.flyingKing,
+    required this.premium,
+    required this.icon,
+  });
+}
+
+const List<VariantConfig> kVariants = [
+  VariantConfig(
+    id: 'turkish',
+    name: 'Türk Daması',
+    shortName: 'Türk',
+    description:
+        'Taşlar düz (yatay/dikey) ilerler, dama kale gibi hareket eder. 8x8 tahta.',
+    size: 8,
+    diagonal: false,
+    manCaptureBackward: true,
+    flyingKing: true,
+    premium: false,
+    icon: Icons.crop_square_rounded,
+  ),
+  VariantConfig(
+    id: 'international',
+    name: 'Uluslararası Dama',
+    shortName: 'FMJD 10x10',
+    description:
+        '10x10 tahtada oynanır, taşlar çapraz ilerler, dama uçarak hareket eder ve her iki yöne de yiyebilir.',
+    size: 10,
+    diagonal: true,
+    manCaptureBackward: true,
+    flyingKing: true,
+    premium: true,
+    icon: Icons.grid_on_rounded,
+  ),
+  VariantConfig(
+    id: 'russian',
+    name: 'Rus Daması',
+    shortName: 'Rus 8x8',
+    description:
+        '8x8 çapraz tahtada oynanır, taşlar geri yönde de yiyebilir, dama uçarak hareket eder.',
+    size: 8,
+    diagonal: true,
+    manCaptureBackward: true,
+    flyingKing: true,
+    premium: true,
+    icon: Icons.window_rounded,
+  ),
+  VariantConfig(
+    id: 'american',
+    name: 'Amerikan Daması',
+    shortName: 'Amerikan 8x8',
+    description:
+        '8x8 çapraz tahtada oynanır, taşlar sadece ileri yönde yiyebilir, dama tek kare hareket eder.',
+    size: 8,
+    diagonal: true,
+    manCaptureBackward: false,
+    flyingKing: false,
+    premium: true,
+    icon: Icons.apps_rounded,
+  ),
+];
+
+// =======================================================================
+// ZORLUK SEVİYELERİ
+// =======================================================================
+
+class Difficulty {
+  final String label;
+  final String desc;
+  final int code; // switch anahtarı
+  final bool premium;
+  const Difficulty(this.label, this.desc, this.code, this.premium);
+}
+
+const List<Difficulty> kDifficulties = [
+  Difficulty('Çaylak', 'Yeni başlayanlar için', 1, false),
+  Difficulty('Kolay', 'Rahat bir oyun', 2, false),
+  Difficulty('Orta', 'Dengeli bir rakip', 4, false),
+  Difficulty('Zor', 'Ciddi bir meydan okuma', 6, false),
+  Difficulty('Usta', 'En güçlü seviye', 8, false),
+  Difficulty('Efsane', 'Pro yapay zekâ gücü', 10, true),
+];
+
+// =======================================================================
+// ORTAK YARDIMCI: Pro kilit diyaloğu
+// =======================================================================
+
+void showLockedFeatureDialog(
+  BuildContext context,
+  String featureName, {
+  String? customMessage,
+}) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: const Color(0xFF122A21),
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: const [
+          Icon(Icons.workspace_premium_rounded, color: Color(0xFFC9A227)),
+          SizedBox(width: 8),
+          Text(
+            'Pro Özellik',
+            style: TextStyle(color: Colors.white, fontSize: 16),
+          ),
+        ],
+      ),
+      content: Text(
+        customMessage ?? '$featureName özelliği Dama Pro üyeliğiyle açılır.',
+        style: const TextStyle(color: Colors.white70),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Vazgeç'),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFC9A227),
+            foregroundColor: Colors.black,
+          ),
+          onPressed: () {
+            Navigator.pop(ctx);
+            Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const PremiumScreen()));
+          },
+          child: const Text('Pro\'ya Geç'),
+        ),
+      ],
+    ),
+  );
 }
 
 // =======================================================================
@@ -59,7 +407,7 @@ class _SplashScreenState extends State<SplashScreen>
           PageRouteBuilder(
             transitionDuration: const Duration(milliseconds: 500),
             pageBuilder: (_, anim, __) =>
-                FadeTransition(opacity: anim, child: const GameScreen()),
+                FadeTransition(opacity: anim, child: const MainMenuScreen()),
           ),
         );
       }
@@ -128,15 +476,1114 @@ class _SplashScreenState extends State<SplashScreen>
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'TÜRK DAMASI',
+                    'GLOBAL DAMA KOLEKSİYONU',
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.45),
                       fontSize: 12,
-                      letterSpacing: 6,
+                      letterSpacing: 3,
                     ),
                   ),
                 ],
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// =======================================================================
+// ANA MENÜ
+// =======================================================================
+
+class MainMenuScreen extends StatefulWidget {
+  const MainMenuScreen({super.key});
+  @override
+  State<MainMenuScreen> createState() => _MainMenuScreenState();
+}
+
+class _MainMenuScreenState extends State<MainMenuScreen> {
+  int selectedThemeIndex = 0;
+  int selectedDifficultyIndex = 2; // Orta
+  int selectedVariantIndex = 0; // Türk Daması
+
+  BoardTheme get _theme => kBoardThemes[selectedThemeIndex];
+  VariantConfig get _variant => kVariants[selectedVariantIndex];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.center,
+            radius: 1.3,
+            colors: [Color(0xFF15342A), Color(0xFF060F0B)],
+          ),
+        ),
+        child: SafeArea(
+          child: Stack(
+            children: [
+              CustomPaint(
+                size: Size.infinite,
+                painter: _BackgroundTexturePainter(),
+              ),
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 760),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(24, 12, 24, 4),
+                          child: Column(
+                            children: [
+                              const SizedBox(height: 4),
+                              ShaderMask(
+                                shaderCallback: (bounds) =>
+                                    const LinearGradient(
+                                      colors: [
+                                        Color(0xFFFFE9A8),
+                                        Color(0xFFC9A227),
+                                      ],
+                                    ).createShader(bounds),
+                                child: const Text(
+                                  'DAMA PRO',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 30,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 8,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                'GLOBAL DAMA • YAPAY ZEKÂ',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.4),
+                                  fontSize: 11,
+                                  letterSpacing: 4,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              _statsStrip(),
+                              if (!Premium.isPremium) ...[
+                                const SizedBox(height: 12),
+                                _premiumBanner(),
+                              ],
+                              const SizedBox(height: 16),
+                              _sectionLabel('Oyun Türü'),
+                              const SizedBox(height: 8),
+                              _variantRow(),
+                              const SizedBox(height: 6),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  _variant.description,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.4),
+                                    fontSize: 10.5,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              _sectionLabel('Zorluk'),
+                              const SizedBox(height: 8),
+                              _difficultyRow(),
+                              const SizedBox(height: 14),
+                              _sectionLabel('Tahta Teması'),
+                              const SizedBox(height: 8),
+                              _themeRow(),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 8, 24, 14),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _primaryButton(
+                              icon: Icons.play_arrow_rounded,
+                              label: 'OYNA',
+                              onTap: () => _startGame(context),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _secondaryButton(
+                                    icon: Icons.menu_book_rounded,
+                                    label: 'Kurallar',
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const RulesScreen(),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _secondaryButton(
+                                    icon: Icons.bar_chart_rounded,
+                                    label: 'İstatistik',
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const StatsScreen(),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _secondaryButton(
+                                    icon: Premium.isPremium
+                                        ? Icons.workspace_premium_rounded
+                                        : Icons.workspace_premium_outlined,
+                                    label: Premium.isPremium ? 'Pro ✓' : 'Pro',
+                                    onTap: () async {
+                                      await Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => const PremiumScreen(),
+                                        ),
+                                      );
+                                      if (mounted) setState(() {});
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _startGame(BuildContext context) {
+    var variant = _variant;
+    if (variant.premium && !Premium.isPremium) {
+      showLockedFeatureDialog(context, variant.name);
+      return;
+    }
+    var diff = kDifficulties[selectedDifficultyIndex];
+    if (diff.premium && !Premium.isPremium) {
+      diff = kDifficulties[3]; // Zor'a düş
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => GameScreen(
+          initialDifficultyCode: diff.code,
+          theme: _theme,
+          variant: variant,
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String text) => Align(
+    alignment: Alignment.centerLeft,
+    child: Text(
+      text.toUpperCase(),
+      style: TextStyle(
+        color: Colors.white.withOpacity(0.45),
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 2,
+      ),
+    ),
+  );
+
+  Widget _premiumBanner() {
+    return GestureDetector(
+      onTap: () async {
+        await Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const PremiumScreen()));
+        if (mounted) setState(() {});
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF2E2410), Color(0xFF1B1508)],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFC9A227).withOpacity(0.4)),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.workspace_premium_rounded,
+              color: Color(0xFFC9A227),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Dama Pro\'ya geçin',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                  Text(
+                    'Tüm dama türleri, temalar ve sınırsız ipucu/geri alma',
+                    style: TextStyle(color: Colors.white54, fontSize: 10.5),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: Colors.white38),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statsStrip() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _statItem(
+            'Galibiyet',
+            '${PlayerStats.wins}',
+            Icons.emoji_events,
+            const Color(0xFFC9A227),
+          ),
+          _statDivider(),
+          _statItem(
+            'Mağlubiyet',
+            '${PlayerStats.losses}',
+            Icons.close_rounded,
+            const Color(0xFFE57373),
+          ),
+          _statDivider(),
+          _statItem(
+            'Kazanma %',
+            '${PlayerStats.winRate.toStringAsFixed(0)}%',
+            Icons.percent_rounded,
+            const Color(0xFF64B5F6),
+          ),
+          _statDivider(),
+          _statItem(
+            'En İyi Seri',
+            '${PlayerStats.bestStreak}',
+            Icons.local_fire_department_rounded,
+            const Color(0xFFFF9E57),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statDivider() =>
+      Container(width: 1, height: 30, color: Colors.white.withOpacity(0.08));
+
+  Widget _statItem(String label, String value, IconData icon, Color color) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 18),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 9),
+        ),
+      ],
+    );
+  }
+
+  Widget _variantRow() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: List.generate(kVariants.length, (i) {
+        final v = kVariants[i];
+        final locked = v.premium && !Premium.isPremium;
+        final selected = selectedVariantIndex == i;
+        return GestureDetector(
+          onTap: () {
+            if (locked) {
+              showLockedFeatureDialog(context, v.name);
+              return;
+            }
+            setState(() => selectedVariantIndex = i);
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 132,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: selected
+                  ? _theme.accent.withOpacity(0.18)
+                  : Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: selected ? _theme.accent : Colors.white.withOpacity(0.1),
+                width: selected ? 1.6 : 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      v.icon,
+                      color: selected ? _theme.accent : Colors.white60,
+                      size: 16,
+                    ),
+                    const Spacer(),
+                    if (locked)
+                      const Icon(
+                        Icons.lock_rounded,
+                        color: Colors.white38,
+                        size: 13,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  v.name,
+                  maxLines: 2,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${v.size}x${v.size}',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.35),
+                    fontSize: 9.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _difficultyRow() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: List.generate(kDifficulties.length, (i) {
+        final d = kDifficulties[i];
+        final locked = d.premium && !Premium.isPremium;
+        final selected = selectedDifficultyIndex == i;
+        return GestureDetector(
+          onTap: () {
+            if (locked) {
+              showLockedFeatureDialog(context, d.label);
+              return;
+            }
+            setState(() => selectedDifficultyIndex = i);
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: selected ? _theme.accent : Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: selected
+                    ? _theme.accent
+                    : Colors.white.withOpacity(0.12),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (locked)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Icon(
+                      Icons.lock_rounded,
+                      size: 11,
+                      color: selected ? Colors.black54 : Colors.white38,
+                    ),
+                  ),
+                Text(
+                  d.label,
+                  style: TextStyle(
+                    color: selected ? Colors.black : Colors.white70,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _themeRow() {
+    return SizedBox(
+      height: 78,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: kBoardThemes.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, i) {
+          final t = kBoardThemes[i];
+          final locked = t.premium && !Premium.isPremium;
+          final selected = selectedThemeIndex == i;
+          return GestureDetector(
+            onTap: () {
+              if (locked) {
+                showLockedFeatureDialog(context, t.name);
+                return;
+              }
+              setState(() => selectedThemeIndex = i);
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 84,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: selected ? t.accent : Colors.white.withOpacity(0.1),
+                  width: selected ? 2 : 1,
+                ),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [t.darkTop, t.lightBottom],
+                ),
+                boxShadow: selected
+                    ? [
+                        BoxShadow(
+                          color: t.accent.withOpacity(0.4),
+                          blurRadius: 12,
+                        ),
+                      ]
+                    : [],
+              ),
+              child: Stack(
+                children: [
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        t.icon,
+                        color: Colors.white,
+                        size: 22,
+                        shadows: const [
+                          Shadow(color: Colors.black54, blurRadius: 4),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        t.name,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.bold,
+                          shadows: [
+                            Shadow(color: Colors.black54, blurRadius: 3),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (locked)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: Colors.black45,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.lock_rounded,
+                          size: 11,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _primaryButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _theme.accent,
+          foregroundColor: Colors.black,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+          elevation: 6,
+        ),
+        onPressed: onTap,
+        icon: Icon(icon, size: 24),
+        label: Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 16,
+            letterSpacing: 1,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _secondaryButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: Colors.white70,
+        side: BorderSide(color: Colors.white.withOpacity(0.2)),
+        padding: const EdgeInsets.symmetric(vertical: 13),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      ),
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label, style: const TextStyle(fontSize: 12.5)),
+    );
+  }
+}
+
+// =======================================================================
+// PREMIUM (Dama Pro) EKRANI
+// =======================================================================
+
+class PremiumScreen extends StatefulWidget {
+  const PremiumScreen({super.key});
+  @override
+  State<PremiumScreen> createState() => _PremiumScreenState();
+}
+
+class _PremiumScreenState extends State<PremiumScreen> {
+  @override
+  Widget build(BuildContext context) {
+    final isPremium = Premium.isPremium;
+    return Scaffold(
+      backgroundColor: const Color(0xFF07130E),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: const Text('Dama Pro'),
+      ),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.workspace_premium_rounded,
+                    color: Color(0xFFC9A227),
+                    size: 64,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Dama Pro\'ya Geç',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    isPremium
+                        ? 'Pro üyeliğiniz aktif, tüm özellikler açık.'
+                        : 'Tüm oyun türlerini, tahta temalarını ve sınırsız ipucu/geri alma hakkını açın.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white60, fontSize: 13),
+                  ),
+                  const SizedBox(height: 20),
+                  _perk(
+                    'Tüm dama türleri',
+                    'Uluslararası, Rus ve Amerikan daması kilidi açılır',
+                    Icons.public_rounded,
+                  ),
+                  _perk(
+                    '9 tahta teması',
+                    'Kraliyet, Zümrüt, Mercan, Gece Mavisi, Bronz, Elmas ve daha fazlası',
+                    Icons.palette_rounded,
+                  ),
+                  _perk(
+                    'Sınırsız ipucu ve geri alma',
+                    'Maç başına limit yok',
+                    Icons.all_inclusive_rounded,
+                  ),
+                  _perk(
+                    'Efsane zorluk seviyesi',
+                    'En derin analiz gücüyle oynayan yapay zekâ',
+                    Icons.military_tech_rounded,
+                  ),
+                  _perk(
+                    'Reklamsız deneyim',
+                    'Kesintisiz, sakin bir oyun ortamı',
+                    Icons.block_rounded,
+                  ),
+                  const SizedBox(height: 24),
+                  if (!isPremium)
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFC9A227),
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
+                        onPressed: () {
+                          setState(() => Premium.isPremium = true);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Dama Pro etkinleştirildi! (demo)'),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.lock_open_rounded),
+                        label: const Text(
+                          'Pro\'yu Etkinleştir (Demo)',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    )
+                  else
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white54,
+                        side: BorderSide(color: Colors.white.withOpacity(0.24)),
+                      ),
+                      onPressed: () =>
+                          setState(() => Premium.isPremium = false),
+                      icon: const Icon(Icons.close_rounded),
+                      label: const Text('Pro\'yu kapat (test)'),
+                    ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Not: Bu demo sürümde satın alma simülasyonu yapılır; gerçek mağaza entegrasyonu için in_app_purchase eklentisi eklenmelidir.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.24),
+                      fontSize: 10.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _perk(String title, String desc, IconData icon) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFFC9A227).withOpacity(0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: const Color(0xFFC9A227), size: 19),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  desc,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.5),
+                    fontSize: 11.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =======================================================================
+// İSTATİSTİK EKRANI
+// =======================================================================
+
+class StatsScreen extends StatelessWidget {
+  const StatsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF07130E),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: const Text('İstatistikler'),
+      ),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _bigStatCard(
+                          'Oynanan Maç',
+                          '${PlayerStats.gamesPlayed}',
+                          Icons.sports_esports_rounded,
+                          const Color(0xFF64B5F6),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _bigStatCard(
+                          'Kazanma Oranı',
+                          '${PlayerStats.winRate.toStringAsFixed(1)}%',
+                          Icons.trending_up_rounded,
+                          const Color(0xFF81C784),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _bigStatCard(
+                          'Galibiyet',
+                          '${PlayerStats.wins}',
+                          Icons.emoji_events_rounded,
+                          const Color(0xFFC9A227),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _bigStatCard(
+                          'Mağlubiyet',
+                          '${PlayerStats.losses}',
+                          Icons.close_rounded,
+                          const Color(0xFFE57373),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _bigStatCard(
+                          'Güncel Seri',
+                          '${PlayerStats.currentStreak}',
+                          Icons.whatshot_rounded,
+                          const Color(0xFFFF9E57),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _bigStatCard(
+                          'En İyi Seri',
+                          '${PlayerStats.bestStreak}',
+                          Icons.local_fire_department_rounded,
+                          const Color(0xFFBA68C8),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Builder(
+                    builder: (innerContext) => TextButton.icon(
+                      onPressed: () {
+                        showDialog(
+                          context: innerContext,
+                          builder: (ctx) => AlertDialog(
+                            backgroundColor: const Color(0xFF122A21),
+                            title: const Text(
+                              'İstatistikleri Sıfırla',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            content: const Text(
+                              'Tüm istatistikler silinecek. Emin misiniz?',
+                              style: TextStyle(color: Colors.white70),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text('Vazgeç'),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  PlayerStats.reset();
+                                  Navigator.pop(ctx);
+                                  (innerContext as Element).markNeedsBuild();
+                                },
+                                child: const Text(
+                                  'Sıfırla',
+                                  style: TextStyle(color: Color(0xFFE57373)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        color: Colors.white38,
+                        size: 18,
+                      ),
+                      label: const Text(
+                        'İstatistikleri sıfırla',
+                        style: TextStyle(color: Colors.white38, fontSize: 12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _bigStatCard(String label, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 26),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.45),
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =======================================================================
+// KURALLAR EKRANI
+// =======================================================================
+
+class RulesScreen extends StatelessWidget {
+  const RulesScreen({super.key});
+
+  static const List<Map<String, String>> _rules = [
+    {
+      'title': 'Başlangıç Dizilişi (Türk Daması)',
+      'body':
+          'Her oyuncunun 16 taşı, 8x8 tahtanın kendi tarafındaki 2 sıraya yerleştirilir. Türk damasında taşlar sadece açık (aynı renk) karelerde değil, tüm karelerde ilerler.',
+    },
+    {
+      'title': 'Hareket (Türk Daması)',
+      'body':
+          'Normal taşlar yalnızca ileri, geri ve yanlara (yatay/dikey) bir kare hareket edebilir; çapraz hareket yoktur.',
+    },
+    {
+      'title': 'Yeme Zorunluluğu',
+      'body':
+          'Bir taşınızla rakip taş yiyebiliyorsanız, yemek zorunludur. Birden fazla yeme seçeneği varsa, en fazla taş alan zincir oynanmalıdır.',
+    },
+    {
+      'title': 'Dama Olma',
+      'body':
+          'Bir taş karşı tarafın son sırasına ulaştığında "dama" olur ve artık kuralına göre uzağa ya da tek kare ilerleyebilir.',
+    },
+    {
+      'title': 'Kazanma',
+      'body':
+          'Rakibinizin oynayabileceği hiçbir hamlesi kalmadığında (tüm taşları alınmış ya da hareket edemiyorsa) oyunu kazanırsınız.',
+    },
+    {
+      'title': 'Uluslararası Dama (10x10) — Pro',
+      'body':
+          '10x10 tahtada oynanır, taşlar çapraz ilerler ve hem ileri hem geri çapraz yiyebilir. Damalar uçarak hareket eder ve uzaktan yer.',
+    },
+    {
+      'title': 'Rus Daması — Pro',
+      'body':
+          '8x8 çapraz tahtada oynanır, taşlar geri yönde de yiyebilir, damalar uçarak hareket eder.',
+    },
+    {
+      'title': 'Amerikan Daması — Pro',
+      'body':
+          '8x8 çapraz tahtada oynanır, normal taşlar yalnızca ileri yönde yiyebilir, damalar sadece bir kare hareket eder (uçmaz).',
+    },
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF07130E),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: const Text('Dama Kuralları'),
+      ),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
+            child: ListView.separated(
+              padding: const EdgeInsets.all(20),
+              itemCount: _rules.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, i) {
+                final r = _rules[i];
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withOpacity(0.08)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 30,
+                        height: 30,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFC9A227).withOpacity(0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          '${i + 1}',
+                          style: const TextStyle(
+                            color: Color(0xFFC9A227),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              r['title']!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              r['body']!,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.6),
+                                fontSize: 12.5,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -192,30 +1639,94 @@ class GameSnapshot {
 }
 
 // =======================================================================
-// OYUN MOTORU — saf fonksiyonlar (isolate uyumlu)
-// Turk Damasi: taslar duz (yatay/dikey) hareket eder, yeme zorunlu, en
-// fazla tas yiyen zincir zorunlu, dama kale gibi hareket eder + ucarak yer.
+// OYUN MOTORU — saf fonksiyonlar (isolate uyumlu), varyanta göre
+// genelleştirilmiş: düz/çapraz hareket, uçan/tek adım dama, ileri/geri yeme.
 // =======================================================================
 
-const int boardSize = 8;
+class EngineCfg {
+  final int size;
+  final bool diagonal;
+  final bool manCaptureBackward;
+  final bool flyingKing;
+  const EngineCfg({
+    required this.size,
+    required this.diagonal,
+    required this.manCaptureBackward,
+    required this.flyingKing,
+  });
 
-bool _inBounds(int r, int c) =>
-    r >= 0 && r < boardSize && c >= 0 && c < boardSize;
+  factory EngineCfg.fromVariant(VariantConfig v) => EngineCfg(
+    size: v.size,
+    diagonal: v.diagonal,
+    manCaptureBackward: v.manCaptureBackward,
+    flyingKing: v.flyingKing,
+  );
+}
+
+bool _inBounds(int r, int c, int size) =>
+    r >= 0 && r < size && c >= 0 && c < size;
 
 List<List<int>> cloneBoard(List<List<int>> b) =>
     b.map((row) => List<int>.from(row)).toList();
 
-const List<List<int>> _dirs = [
-  [-1, 0],
-  [1, 0],
-  [0, -1],
-  [0, 1],
-];
+List<List<int>> _kingDirs(bool diagonal) => diagonal
+    ? const [
+        [-1, -1],
+        [-1, 1],
+        [1, -1],
+        [1, 1],
+      ]
+    : const [
+        [-1, 0],
+        [1, 0],
+        [0, -1],
+        [0, 1],
+      ];
 
-List<MoveOption> getAllMoves(List<List<int>> board, bool isWhite) {
+List<List<int>> _manMoveDirs(bool diagonal, bool isWhite) {
+  final fwd = isWhite ? 1 : -1;
+  if (diagonal) {
+    return [
+      [fwd, -1],
+      [fwd, 1],
+    ];
+  }
+  return [
+    [fwd, 0],
+    [0, -1],
+    [0, 1],
+  ];
+}
+
+List<List<int>> _manCaptureDirs(
+  bool diagonal,
+  bool manCaptureBackward,
+  bool isWhite,
+) {
+  if (manCaptureBackward) return _kingDirs(diagonal);
+  final fwd = isWhite ? 1 : -1;
+  if (diagonal) {
+    return [
+      [fwd, -1],
+      [fwd, 1],
+    ];
+  }
+  return [
+    [fwd, 0],
+    [0, -1],
+    [0, 1],
+  ];
+}
+
+List<MoveOption> getAllMoves(
+  EngineCfg cfg,
+  List<List<int>> board,
+  bool isWhite,
+) {
+  final size = cfg.size;
   final List<MoveOption> captureMoves = [];
-  for (int r = 0; r < boardSize; r++) {
-    for (int c = 0; c < boardSize; c++) {
+  for (int r = 0; r < size; r++) {
+    for (int c = 0; c < size; c++) {
       final v = board[r][c];
       if (v == 0) continue;
       final pieceIsWhite = v > 0;
@@ -223,7 +1734,7 @@ List<MoveOption> getAllMoves(List<List<int>> board, bool isWhite) {
       final isKing = v.abs() == 2;
       final b2 = cloneBoard(board);
       b2[r][c] = 0;
-      final seqs = _exploreCaptures(b2, r, c, isKing, isWhite, [
+      final seqs = _exploreCaptures(cfg, b2, r, c, isKing, isWhite, [
         [r, c],
       ], []);
       captureMoves.addAll(seqs);
@@ -234,25 +1745,26 @@ List<MoveOption> getAllMoves(List<List<int>> board, bool isWhite) {
     final best = captureMoves
         .where((m) => m.captured.length == maxLen)
         .toList();
-    _orderMoves(best, board);
+    _orderMoves(best, board, size);
     return best;
   }
-  final simple = _simpleMoves(board, isWhite);
-  _orderMoves(simple, board);
+  final simple = _simpleMoves(cfg, board, isWhite);
+  _orderMoves(simple, board, size);
   return simple;
 }
 
-/// Alfa-beta budamasini iyilestirmek icin hamleleri sirala: tac olacak
-/// hamleler ve merkeze yakin hamleler once gelsin.
-void _orderMoves(List<MoveOption> moves, List<List<int>> board) {
+/// Alfa-beta budamasını iyileştirmek için hamleleri sırala: taç olacak
+/// hamleler ve merkeze yakın hamleler önce gelsin.
+void _orderMoves(List<MoveOption> moves, List<List<int>> board, int size) {
+  final center = (size - 1) / 2.0;
   int score(MoveOption m) {
     int s = m.captured.length * 100;
     final to = m.to;
-    final centerDist = (to[0] - 3.5).abs() + (to[1] - 3.5).abs();
-    s += (7 - centerDist).round();
+    final centerDist = (to[0] - center).abs() + (to[1] - center).abs();
+    s += (size - centerDist).round();
     final v = board[m.from[0]][m.from[1]];
     final willPromote =
-        (v == 1 && to[0] == boardSize - 1) || (v == -1 && to[0] == 0);
+        (v == 1 && to[0] == size - 1) || (v == -1 && to[0] == 0);
     if (willPromote) s += 50;
     return s;
   }
@@ -261,6 +1773,7 @@ void _orderMoves(List<MoveOption> moves, List<List<int>> board) {
 }
 
 List<MoveOption> _exploreCaptures(
+  EngineCfg cfg,
   List<List<int>> board,
   int curR,
   int curC,
@@ -269,16 +1782,21 @@ List<MoveOption> _exploreCaptures(
   List<List<int>> path,
   List<List<int>> captured,
 ) {
+  final size = cfg.size;
+  final dirs = isKing
+      ? _kingDirs(cfg.diagonal)
+      : _manCaptureDirs(cfg.diagonal, cfg.manCaptureBackward, isWhite);
+  final sliding = isKing && cfg.flyingKing;
   final List<MoveOption> moves = [];
-  for (final d in _dirs) {
+  for (final d in dirs) {
     final dr = d[0], dc = d[1];
-    if (isKing) {
+    if (sliding) {
       int step = 1;
       List<int>? enemyPos;
       while (true) {
         final nr = curR + dr * step;
         final nc = curC + dc * step;
-        if (!_inBounds(nr, nc)) break;
+        if (!_inBounds(nr, nc, size)) break;
         final val = board[nr][nc];
         if (val == 0) {
           if (enemyPos == null) {
@@ -293,6 +1811,7 @@ List<MoveOption> _exploreCaptures(
             ];
             final newCaptured = [...captured, enemyPos];
             final sub = _exploreCaptures(
+              cfg,
               nb,
               nr,
               nc,
@@ -327,8 +1846,8 @@ List<MoveOption> _exploreCaptures(
     } else {
       final nr1 = curR + dr, nc1 = curC + dc;
       final nr2 = curR + dr * 2, nc2 = curC + dc * 2;
-      if (!_inBounds(nr2, nc2)) continue;
-      if (!_inBounds(nr1, nc1)) continue;
+      if (!_inBounds(nr2, nc2, size)) continue;
+      if (!_inBounds(nr1, nc1, size)) continue;
       final mid = board[nr1][nc1];
       final land = board[nr2][nc2];
       final isEnemyMid = mid != 0 && (isWhite ? mid < 0 : mid > 0);
@@ -344,6 +1863,7 @@ List<MoveOption> _exploreCaptures(
           [nr1, nc1],
         ];
         final sub = _exploreCaptures(
+          cfg,
           nb,
           nr2,
           nc2,
@@ -363,43 +1883,61 @@ List<MoveOption> _exploreCaptures(
   return moves;
 }
 
-List<MoveOption> _simpleMoves(List<List<int>> board, bool isWhite) {
+List<MoveOption> _simpleMoves(
+  EngineCfg cfg,
+  List<List<int>> board,
+  bool isWhite,
+) {
+  final size = cfg.size;
   final List<MoveOption> moves = [];
-  for (int r = 0; r < boardSize; r++) {
-    for (int c = 0; c < boardSize; c++) {
+  for (int r = 0; r < size; r++) {
+    for (int c = 0; c < size; c++) {
       final v = board[r][c];
       if (v == 0) continue;
       final pieceIsWhite = v > 0;
       if (pieceIsWhite != isWhite) continue;
       final isKing = v.abs() == 2;
       if (isKing) {
-        for (final d in _dirs) {
-          int step = 1;
-          while (true) {
-            final nr = r + d[0] * step, nc = c + d[1] * step;
-            if (!_inBounds(nr, nc) || board[nr][nc] != 0) break;
-            moves.add(
-              MoveOption(
-                path: [
-                  [r, c],
-                  [nr, nc],
-                ],
-                captured: [],
-              ),
-            );
-            step++;
+        final dirs = _kingDirs(cfg.diagonal);
+        if (cfg.flyingKing) {
+          for (final d in dirs) {
+            int step = 1;
+            while (true) {
+              final nr = r + d[0] * step, nc = c + d[1] * step;
+              if (!_inBounds(nr, nc, size) || board[nr][nc] != 0) break;
+              moves.add(
+                MoveOption(
+                  path: [
+                    [r, c],
+                    [nr, nc],
+                  ],
+                  captured: [],
+                ),
+              );
+              step++;
+            }
+          }
+        } else {
+          for (final d in dirs) {
+            final nr = r + d[0], nc = c + d[1];
+            if (_inBounds(nr, nc, size) && board[nr][nc] == 0) {
+              moves.add(
+                MoveOption(
+                  path: [
+                    [r, c],
+                    [nr, nc],
+                  ],
+                  captured: [],
+                ),
+              );
+            }
           }
         }
       } else {
-        final fwd = isWhite ? 1 : -1;
-        final candidates = [
-          [r + fwd, c],
-          [r, c - 1],
-          [r, c + 1],
-        ];
-        for (final cand in candidates) {
-          final nr = cand[0], nc = cand[1];
-          if (_inBounds(nr, nc) && board[nr][nc] == 0) {
+        final dirs = _manMoveDirs(cfg.diagonal, isWhite);
+        for (final d in dirs) {
+          final nr = r + d[0], nc = c + d[1];
+          if (_inBounds(nr, nc, size) && board[nr][nc] == 0) {
             moves.add(
               MoveOption(
                 path: [
@@ -417,7 +1955,11 @@ List<MoveOption> _simpleMoves(List<List<int>> board, bool isWhite) {
   return moves;
 }
 
-List<List<int>> applyMoveToBoard(List<List<int>> board, MoveOption m) {
+List<List<int>> applyMoveToBoard(
+  EngineCfg cfg,
+  List<List<int>> board,
+  MoveOption m,
+) {
   final nb = cloneBoard(board);
   final from = m.path.first;
   final to = m.path.last;
@@ -426,34 +1968,37 @@ List<List<int>> applyMoveToBoard(List<List<int>> board, MoveOption m) {
   for (final cap in m.captured) {
     nb[cap[0]][cap[1]] = 0;
   }
-  if (val == 1 && to[0] == boardSize - 1) val = 2;
+  if (val == 1 && to[0] == cfg.size - 1) val = 2;
   if (val == -1 && to[0] == 0) val = -2;
   nb[to[0]][to[1]] = val;
   return nb;
 }
 
-/// Gelismis degerlendirme fonksiyonu:
-/// - Malzeme (tas/dama degeri)
-/// - Merkez kontrolu
+/// Gelişmiş değerlendirme fonksiyonu:
+/// - Malzeme (taş/dama değeri)
+/// - Merkez kontrolü
 /// - Hareket kabiliyeti (mobilite)
-/// - Damalarin serbestligi (ne kadar uzaga hareket edebiliyor)
-/// - Geri sira savunmasi (terfi hattinin korunmasi bonusu)
-int evaluateBoard(List<List<int>> board) {
+/// - Dama üstünlüğü
+int evaluateBoard(EngineCfg cfg, List<List<int>> board) {
+  final size = cfg.size;
+  final center = (size - 1) / 2.0;
   int white = 0, black = 0;
   int whiteKings = 0, blackKings = 0;
 
-  for (int r = 0; r < boardSize; r++) {
-    for (int c = 0; c < boardSize; c++) {
+  for (int r = 0; r < size; r++) {
+    for (int c = 0; c < size; c++) {
       final v = board[r][c];
       if (v == 0) continue;
-      final centerBonus = 4 - ((r - 3.5).abs() + (c - 3.5).abs()).round() ~/ 2;
+      final centerBonus =
+          (size ~/ 2) -
+          (((r - center).abs() + (c - center).abs())).round() ~/ 2;
       if (v == 1) {
         white += 100 + r * 3 + centerBonus;
       } else if (v == 2) {
         white += 340 + centerBonus * 2;
         whiteKings++;
       } else if (v == -1) {
-        black += 100 + (boardSize - 1 - r) * 3 + centerBonus;
+        black += 100 + (size - 1 - r) * 3 + centerBonus;
       } else if (v == -2) {
         black += 340 + centerBonus * 2;
         blackKings++;
@@ -461,13 +2006,11 @@ int evaluateBoard(List<List<int>> board) {
     }
   }
 
-  // Mobilite: daha fazla oynanabilir hamlesi olan taraf avantajlidir.
-  final whiteMoves = getAllMoves(board, true).length;
-  final blackMoves = getAllMoves(board, false).length;
+  final whiteMoves = getAllMoves(cfg, board, true).length;
+  final blackMoves = getAllMoves(cfg, board, false).length;
   white += whiteMoves * 2;
   black += blackMoves * 2;
 
-  // Dama ustunlugu tek basina cok guclu, kucuk ekstra bonus.
   white += whiteKings * 15;
   black += blackKings * 15;
 
@@ -481,6 +2024,7 @@ class _SearchResult {
 }
 
 int _negaMax(
+  EngineCfg cfg,
   List<List<int>> board,
   int depth,
   int alpha,
@@ -490,19 +2034,28 @@ int _negaMax(
   int timeBudgetMs,
 ) {
   if (sw.elapsedMilliseconds > timeBudgetMs) {
-    return blackToMove ? -evaluateBoard(board) : evaluateBoard(board);
+    return blackToMove ? -evaluateBoard(cfg, board) : evaluateBoard(cfg, board);
   }
   final isWhite = !blackToMove;
-  final moves = getAllMoves(board, isWhite);
+  final moves = getAllMoves(cfg, board, isWhite);
   if (moves.isEmpty) {
     return blackToMove ? -100000 - depth : 100000 + depth;
   }
-  if (depth == 0) return evaluateBoard(board);
+  if (depth == 0) return evaluateBoard(cfg, board);
   if (blackToMove) {
     int maxEval = -1 << 30;
     for (final m in moves) {
-      final nb = applyMoveToBoard(board, m);
-      final ev = _negaMax(nb, depth - 1, alpha, beta, false, sw, timeBudgetMs);
+      final nb = applyMoveToBoard(cfg, board, m);
+      final ev = _negaMax(
+        cfg,
+        nb,
+        depth - 1,
+        alpha,
+        beta,
+        false,
+        sw,
+        timeBudgetMs,
+      );
       if (ev > maxEval) maxEval = ev;
       if (maxEval > alpha) alpha = maxEval;
       if (beta <= alpha) break;
@@ -511,8 +2064,17 @@ int _negaMax(
   } else {
     int minEval = 1 << 30;
     for (final m in moves) {
-      final nb = applyMoveToBoard(board, m);
-      final ev = _negaMax(nb, depth - 1, alpha, beta, true, sw, timeBudgetMs);
+      final nb = applyMoveToBoard(cfg, board, m);
+      final ev = _negaMax(
+        cfg,
+        nb,
+        depth - 1,
+        alpha,
+        beta,
+        true,
+        sw,
+        timeBudgetMs,
+      );
       if (ev < minEval) minEval = ev;
       if (minEval < beta) beta = minEval;
       if (beta <= alpha) break;
@@ -522,19 +2084,21 @@ int _negaMax(
 }
 
 _SearchResult _searchAtDepth(
+  EngineCfg cfg,
   List<List<int>> board,
   int depth,
   bool isWhite,
   Stopwatch sw,
   int timeBudgetMs,
 ) {
-  final moves = getAllMoves(board, isWhite);
+  final moves = getAllMoves(cfg, board, isWhite);
   if (moves.isEmpty) return _SearchResult(0, null);
   MoveOption? bestMove;
   int bestScore = isWhite ? (1 << 30) : (-1 << 30);
   for (final m in moves) {
-    final nb = applyMoveToBoard(board, m);
+    final nb = applyMoveToBoard(cfg, board, m);
     final score = _negaMax(
+      cfg,
       nb,
       depth - 1,
       -1 << 30,
@@ -559,15 +2123,10 @@ _SearchResult _searchAtDepth(
   return _SearchResult(bestScore, bestMove ?? moves.first);
 }
 
-/// Genel amacli en iyi hamle bulucu — hem yapay zeka (isWhite:false) hem de
-/// oyuncuya ipucu (isWhite:true) icin kullanilir. compute() ile ayri
-/// isolate'te calisir, arayuzu kilitlemez.
-///
-/// Zaman butceli iteratif derinlesme: her zorluk seviyesi icin bir azami
-/// derinlik ve bir zaman butcesi (ms) tanimlanir. Derinlik 1'den baslanarak
-/// artirilir, sure dolana ya da azami derinlige ulasilana kadar en son
-/// tamamlanan derinligin sonucu kullanilir. Bu, sabit derinlige gore hem
-/// daha guclu hem de daha tutarli tepki suresi saglar.
+/// Genel amaçlı en iyi hamle bulucu — hem yapay zekâ (isWhite:false) hem de
+/// oyuncuya ipucu (isWhite:true) için kullanılır. compute() ile ayrı
+/// isolate'te çalışır, arayüzü kilitlemez. Varyant bilgisi (size, diagonal,
+/// manCaptureBackward, flyingKing) sade tiplerle args map'i üzerinden taşınır.
 Map<String, dynamic> findBestMove(Map<String, dynamic> args) {
   final rawBoard = args['board'] as List;
   final board = rawBoard
@@ -576,8 +2135,14 @@ Map<String, dynamic> findBestMove(Map<String, dynamic> args) {
   final maxDepth = args['depth'] as int;
   final isWhite = args['isWhite'] as bool;
   final timeBudgetMs = (args['timeBudgetMs'] as int?) ?? 1500;
+  final cfg = EngineCfg(
+    size: args['size'] as int,
+    diagonal: args['diagonal'] as bool,
+    manCaptureBackward: args['manCaptureBackward'] as bool,
+    flyingKing: args['flyingKing'] as bool,
+  );
 
-  final moves = getAllMoves(board, isWhite);
+  final moves = getAllMoves(cfg, board, isWhite);
   if (moves.isEmpty) return {};
   if (moves.length == 1) {
     return {'path': moves.first.path, 'captured': moves.first.captured};
@@ -587,10 +2152,9 @@ Map<String, dynamic> findBestMove(Map<String, dynamic> args) {
   MoveOption best = moves.first;
 
   for (int d = 1; d <= maxDepth; d++) {
-    final result = _searchAtDepth(board, d, isWhite, sw, timeBudgetMs);
+    final result = _searchAtDepth(cfg, board, d, isWhite, sw, timeBudgetMs);
     if (result.move != null) best = result.move!;
     if (sw.elapsedMilliseconds > timeBudgetMs) break;
-    // Kesin kazanan/kaybeden bir sonuc bulunduysa daha fazla aramaya gerek yok.
     if (result.score.abs() > 90000) break;
   }
 
@@ -601,16 +2165,28 @@ String posToAlgebraic(List<int> pos) =>
     '${String.fromCharCode(97 + pos[1])}${pos[0] + 1}';
 
 // =======================================================================
-// ARAYUZ
+// OYUN EKRANI
 // =======================================================================
 
 class GameScreen extends StatefulWidget {
-  const GameScreen({super.key});
+  final int initialDifficultyCode;
+  final BoardTheme theme;
+  final VariantConfig variant;
+  const GameScreen({
+    super.key,
+    required this.initialDifficultyCode,
+    required this.theme,
+    required this.variant,
+  });
+
   @override
   State<GameScreen> createState() => _GameScreenState();
 }
 
 class _GameScreenState extends State<GameScreen> {
+  static const int freeHintLimit = 3;
+  static const int freeUndoLimit = 5;
+
   late Map<int, Piece> pieces;
   late List<List<int>> idGrid;
   int nextId = 0;
@@ -621,21 +2197,31 @@ class _GameScreenState extends State<GameScreen> {
   List<MoveOption> selectableMoves = [];
   List<MoveOption> currentPieceMoves = [];
   bool gameOver = false;
+  bool _statsRecorded = false;
   String? statusMessage;
-  int difficulty = 4;
+  late int difficulty;
+  late BoardTheme theme;
+  late VariantConfig variant;
   List<int> lastMoveHighlight = [];
   MoveOption? hintMove;
   List<String> moveLog = [];
   final List<GameSnapshot> _history = [];
   int totalMoves = 0;
+  int hintsUsed = 0;
+  int undosUsed = 0;
   bool soundOn = true;
 
   Timer? _clockTimer;
   Duration elapsed = Duration.zero;
 
+  EngineCfg get engineCfg => EngineCfg.fromVariant(variant);
+
   @override
   void initState() {
     super.initState();
+    difficulty = widget.initialDifficultyCode;
+    theme = widget.theme;
+    variant = widget.variant;
     _setupBoard();
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!gameOver && mounted) {
@@ -650,15 +2236,21 @@ class _GameScreenState extends State<GameScreen> {
     super.dispose();
   }
 
-  // Zorluga gore azami arama derinligi ve zaman butcesi (ms).
+  // Zorluğa göre azami arama derinliği ve zaman bütçesi (ms).
   int get _maxDepthForDifficulty {
     switch (difficulty) {
+      case 1:
+        return 4;
       case 2:
         return 6;
       case 4:
         return 9;
       case 6:
         return 12;
+      case 8:
+        return 14;
+      case 10:
+        return 16;
       default:
         return 8;
     }
@@ -666,55 +2258,100 @@ class _GameScreenState extends State<GameScreen> {
 
   int get _timeBudgetForDifficulty {
     switch (difficulty) {
+      case 1:
+        return 300;
       case 2:
-        return 500;
+        return 600;
       case 4:
         return 1500;
       case 6:
         return 3200;
+      case 8:
+        return 4800;
+      case 10:
+        return 6000;
       default:
         return 1200;
     }
   }
 
+  String get _difficultyLabel {
+    final d = kDifficulties.firstWhere(
+      (d) => d.code == difficulty,
+      orElse: () => kDifficulties[2],
+    );
+    return d.label;
+  }
+
   void _setupBoard() {
     pieces = {};
-    idGrid = List.generate(boardSize, (_) => List.filled(boardSize, -1));
+    final size = variant.size;
+    idGrid = List.generate(size, (_) => List.filled(size, -1));
     nextId = 0;
-    for (final r in [1, 2]) {
-      for (int c = 0; c < boardSize; c++) {
-        final p = Piece(id: nextId, row: r, col: c, isWhite: true);
-        pieces[nextId] = p;
-        idGrid[r][c] = nextId;
-        nextId++;
+
+    if (variant.diagonal) {
+      final k = size >= 10 ? 4 : 3;
+      for (int r = 0; r < k; r++) {
+        for (int c = 0; c < size; c++) {
+          if ((r + c) % 2 == 0) {
+            final p = Piece(id: nextId, row: r, col: c, isWhite: true);
+            pieces[nextId] = p;
+            idGrid[r][c] = nextId;
+            nextId++;
+          }
+        }
+      }
+      for (int r = size - k; r < size; r++) {
+        for (int c = 0; c < size; c++) {
+          if ((r + c) % 2 == 0) {
+            final p = Piece(id: nextId, row: r, col: c, isWhite: false);
+            pieces[nextId] = p;
+            idGrid[r][c] = nextId;
+            nextId++;
+          }
+        }
+      }
+    } else {
+      for (final r in [1, 2]) {
+        for (int c = 0; c < size; c++) {
+          final p = Piece(id: nextId, row: r, col: c, isWhite: true);
+          pieces[nextId] = p;
+          idGrid[r][c] = nextId;
+          nextId++;
+        }
+      }
+      for (final r in [size - 3, size - 2]) {
+        for (int c = 0; c < size; c++) {
+          final p = Piece(id: nextId, row: r, col: c, isWhite: false);
+          pieces[nextId] = p;
+          idGrid[r][c] = nextId;
+          nextId++;
+        }
       }
     }
-    for (final r in [5, 6]) {
-      for (int c = 0; c < boardSize; c++) {
-        final p = Piece(id: nextId, row: r, col: c, isWhite: false);
-        pieces[nextId] = p;
-        idGrid[r][c] = nextId;
-        nextId++;
-      }
-    }
+
     whiteTurn = true;
     selectedId = null;
     currentPieceMoves = [];
     gameOver = false;
+    _statsRecorded = false;
     statusMessage = null;
     lastMoveHighlight = [];
     hintMove = null;
     moveLog = [];
     totalMoves = 0;
+    hintsUsed = 0;
+    undosUsed = 0;
     elapsed = Duration.zero;
     _history.clear();
     _refreshLegalMoves();
   }
 
   List<List<int>> get valueBoard {
-    final b = List.generate(boardSize, (_) => List.filled(boardSize, 0));
-    for (int r = 0; r < boardSize; r++) {
-      for (int c = 0; c < boardSize; c++) {
+    final size = variant.size;
+    final b = List.generate(size, (_) => List.filled(size, 0));
+    for (int r = 0; r < size; r++) {
+      for (int c = 0; c < size; c++) {
         final id = idGrid[r][c];
         if (id != -1) {
           final p = pieces[id]!;
@@ -728,10 +2365,19 @@ class _GameScreenState extends State<GameScreen> {
   bool get mustCapture => selectableMoves.any((m) => m.isCapture);
 
   void _refreshLegalMoves() {
-    selectableMoves = getAllMoves(valueBoard, whiteTurn);
+    selectableMoves = getAllMoves(engineCfg, valueBoard, whiteTurn);
     if (selectableMoves.isEmpty) {
       gameOver = true;
       statusMessage = whiteTurn ? 'Yapay Zeka Kazandı' : 'Kazandınız!';
+      if (!_statsRecorded) {
+        _statsRecorded = true;
+        if (whiteTurn) {
+          PlayerStats.recordLoss();
+        } else {
+          PlayerStats.recordWin();
+        }
+        PlayerStats.totalMovesPlayed += totalMoves;
+      }
     }
   }
 
@@ -753,6 +2399,15 @@ class _GameScreenState extends State<GameScreen> {
 
   void _undo() {
     if (isAiThinking || _history.isEmpty) return;
+    if (!Premium.isPremium && undosUsed >= freeUndoLimit) {
+      showLockedFeatureDialog(
+        context,
+        'Sınırsız Geri Alma',
+        customMessage:
+            'Ücretsiz sürümde maç başına $freeUndoLimit geri alma hakkınız var. Sınırsız geri almak için Pro\'ya geçin.',
+      );
+      return;
+    }
     GameSnapshot target;
     if (_history.length >= 2 && _history.last.whiteTurn == false) {
       target = _history[_history.length - 2];
@@ -760,6 +2415,7 @@ class _GameScreenState extends State<GameScreen> {
     } else {
       target = _history.removeLast();
     }
+    undosUsed++;
     setState(() {
       pieces = target.pieces;
       idGrid = target.idGrid;
@@ -865,7 +2521,7 @@ class _GameScreenState extends State<GameScreen> {
     final p = pieces[pieceId]!;
     bool promoted = false;
     if (!p.isKing &&
-        ((isWhite && lastPos[0] == boardSize - 1) ||
+        ((isWhite && lastPos[0] == variant.size - 1) ||
             (!isWhite && lastPos[0] == 0))) {
       setState(() {
         p.isKing = true;
@@ -877,6 +2533,7 @@ class _GameScreenState extends State<GameScreen> {
     final notation =
         '${posToAlgebraic(move.path.first)}${move.isCapture ? 'x' : '-'}${posToAlgebraic(move.path.last)}${promoted ? '★' : ''}';
 
+    if (!mounted) return;
     setState(() {
       pieces.removeWhere((key, value) => !value.alive);
       whiteTurn = !whiteTurn;
@@ -901,7 +2558,12 @@ class _GameScreenState extends State<GameScreen> {
       'isWhite': false,
       'depth': _maxDepthForDifficulty,
       'timeBudgetMs': _timeBudgetForDifficulty,
+      'size': variant.size,
+      'diagonal': variant.diagonal,
+      'manCaptureBackward': variant.manCaptureBackward,
+      'flyingKing': variant.flyingKing,
     });
+    if (!mounted) return;
     if (result.isEmpty) {
       setState(() {
         isAiThinking = false;
@@ -923,12 +2585,26 @@ class _GameScreenState extends State<GameScreen> {
 
   Future<void> _showHint() async {
     if (!whiteTurn || isAiThinking || gameOver || isHintLoading) return;
+    if (!Premium.isPremium && hintsUsed >= freeHintLimit) {
+      showLockedFeatureDialog(
+        context,
+        'Sınırsız İpucu',
+        customMessage:
+            'Ücretsiz sürümde maç başına $freeHintLimit ipucu hakkınız var. Sınırsız ipucu için Pro\'ya geçin.',
+      );
+      return;
+    }
+    hintsUsed++;
     setState(() => isHintLoading = true);
     final result = await compute(findBestMove, {
       'board': valueBoard,
       'isWhite': true,
       'depth': min(_maxDepthForDifficulty, 8),
       'timeBudgetMs': 1200,
+      'size': variant.size,
+      'diagonal': variant.diagonal,
+      'manCaptureBackward': variant.manCaptureBackward,
+      'flyingKing': variant.flyingKing,
     });
     if (!mounted) return;
     setState(() {
@@ -958,6 +2634,35 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
+  Future<bool> _confirmExit() async {
+    if (gameOver || totalMoves == 0) return true;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF122A21),
+        title: const Text('Oyundan Çık', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Devam eden oyun kaybedilecek. Ana menüye dönmek istiyor musunuz?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Çık',
+              style: TextStyle(color: Color(0xFFE57373)),
+            ),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   String get _elapsedText {
     final m = elapsed.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
@@ -966,51 +2671,57 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment.center,
-              radius: 1.3,
-              colors: [Color(0xFF15342A), Color(0xFF060F0B)],
-            ),
-          ),
-          child: Stack(
-            children: [
-              CustomPaint(
-                size: Size.infinite,
-                painter: _BackgroundTexturePainter(),
+    return WillPopScope(
+      onWillPop: _confirmExit,
+      child: Scaffold(
+        body: SafeArea(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment.center,
+                radius: 1.3,
+                colors: [
+                  Color.lerp(theme.darkTop, const Color(0xFF15342A), 0.65)!,
+                  const Color(0xFF060F0B),
+                ],
               ),
-              Column(
-                children: [
-                  _buildTopBar(),
-                  if (mustCapture && whiteTurn && !gameOver)
-                    _buildCaptureBanner(),
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Expanded(flex: 3, child: _buildSidePanel(true)),
-                        Expanded(
-                          flex: 6,
-                          child: Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(10),
-                              child: AspectRatio(
-                                aspectRatio: 1,
-                                child: _buildBoardFrame(),
+            ),
+            child: Stack(
+              children: [
+                CustomPaint(
+                  size: Size.infinite,
+                  painter: _BackgroundTexturePainter(),
+                ),
+                Column(
+                  children: [
+                    _buildTopBar(),
+                    if (mustCapture && whiteTurn && !gameOver)
+                      _buildCaptureBanner(),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Expanded(flex: 2, child: _buildSidePanel(true)),
+                          Expanded(
+                            flex: 9,
+                            child: Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(8),
+                                child: AspectRatio(
+                                  aspectRatio: 1,
+                                  child: _buildBoardFrame(),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        Expanded(flex: 3, child: _buildSidePanel(false)),
-                      ],
+                          Expanded(flex: 2, child: _buildSidePanel(false)),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              if (gameOver) _buildGameOverOverlay(),
-            ],
+                  ],
+                ),
+                if (gameOver) _buildGameOverOverlay(),
+              ],
+            ),
           ),
         ),
       ),
@@ -1057,9 +2768,25 @@ class _GameScreenState extends State<GameScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Row(
         children: [
+          IconButton(
+            tooltip: 'Ana Menü',
+            icon: const Icon(
+              Icons.home_rounded,
+              color: Colors.white54,
+              size: 20,
+            ),
+            onPressed: () async {
+              if (await _confirmExit()) {
+                if (mounted) Navigator.of(context).pop();
+              }
+            },
+          ),
           ShaderMask(
-            shaderCallback: (bounds) => const LinearGradient(
-              colors: [Color(0xFFFFE9A8), Color(0xFFC9A227)],
+            shaderCallback: (bounds) => LinearGradient(
+              colors: [
+                Color.lerp(theme.accent, Colors.white, 0.5)!,
+                theme.accent,
+              ],
             ).createShader(bounds),
             child: const Text(
               'DAMA PRO',
@@ -1095,6 +2822,32 @@ class _GameScreenState extends State<GameScreen> {
                     fontFeatures: [FontFeature.tabularFigures()],
                   ),
                 ),
+                const SizedBox(width: 8),
+                Icon(variant.icon, size: 12, color: theme.accent),
+                const SizedBox(width: 3),
+                Text(
+                  variant.shortName,
+                  style: TextStyle(
+                    color: theme.accent,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.military_tech_rounded,
+                  size: 12,
+                  color: theme.accent,
+                ),
+                const SizedBox(width: 3),
+                Text(
+                  _difficultyLabel,
+                  style: TextStyle(
+                    color: theme.accent,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1128,7 +2881,7 @@ class _GameScreenState extends State<GameScreen> {
                           ),
                           decoration: BoxDecoration(
                             color: isLast
-                                ? const Color(0xFFC9A227).withOpacity(0.85)
+                                ? theme.accent.withOpacity(0.85)
                                 : Colors.white10,
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -1178,10 +2931,10 @@ class _GameScreenState extends State<GameScreen> {
             decoration: BoxDecoration(
               color: const Color(0xFF122A21),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0xFFC9A227), width: 2),
+              border: Border.all(color: theme.accent, width: 2),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFFC9A227).withOpacity(0.25),
+                  color: theme.accent.withOpacity(0.25),
                   blurRadius: 40,
                 ),
               ],
@@ -1191,7 +2944,7 @@ class _GameScreenState extends State<GameScreen> {
               children: [
                 Icon(
                   won ? Icons.emoji_events : Icons.emoji_events_outlined,
-                  color: const Color(0xFFC9A227),
+                  color: theme.accent,
                   size: 60,
                 ),
                 const SizedBox(height: 14),
@@ -1212,24 +2965,46 @@ class _GameScreenState extends State<GameScreen> {
                   ),
                 ),
                 const SizedBox(height: 22),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC9A227),
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 30,
-                      vertical: 14,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white70,
+                        side: BorderSide(color: Colors.white.withOpacity(0.25)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.home_rounded, size: 18),
+                      label: const Text('Ana Menü'),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
+                    const SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.accent,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 26,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      onPressed: _restart,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text(
+                        'Tekrar Oyna',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
-                  ),
-                  onPressed: _restart,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text(
-                    'Tekrar Oyna',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  ],
                 ),
               ],
             ),
@@ -1248,7 +3023,7 @@ class _GameScreenState extends State<GameScreen> {
             borderRadius: BorderRadius.circular(10),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFC9A227).withOpacity(0.15),
+                color: theme.accent.withOpacity(0.15),
                 blurRadius: 60,
                 spreadRadius: 8,
               ),
@@ -1264,17 +3039,17 @@ class _GameScreenState extends State<GameScreen> {
           padding: const EdgeInsets.all(9),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFFE9C766), Color(0xFF9A7415), Color(0xFFE9C766)],
+              colors: [theme.frameA, theme.frameB, theme.frameA],
             ),
           ),
           child: Container(
             padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(6),
-              color: const Color(0xFF1B120A),
+            decoration: const BoxDecoration(
+              borderRadius: BorderRadius.all(Radius.circular(6)),
+              color: Color(0xFF1B120A),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(4),
@@ -1296,7 +3071,7 @@ class _GameScreenState extends State<GameScreen> {
                 width: 12,
                 height: 12,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE9C766),
+                  color: theme.frameA,
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.5),
@@ -1312,16 +3087,17 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Widget _buildBoard() {
+    final size = variant.size;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final cell = constraints.maxWidth / boardSize;
+        final cell = constraints.maxWidth / size;
         return Stack(
           children: [
             Column(
-              children: List.generate(boardSize, (screenRow) {
-                final boardRow = boardSize - 1 - screenRow;
+              children: List.generate(size, (screenRow) {
+                final boardRow = size - 1 - screenRow;
                 return Row(
-                  children: List.generate(boardSize, (col) {
+                  children: List.generate(size, (col) {
                     final isDark = (boardRow + col) % 2 == 0;
                     final isLastMove =
                         lastMoveHighlight.length == 4 &&
@@ -1349,21 +3125,15 @@ class _GameScreenState extends State<GameScreen> {
                         height: cell,
                         decoration: BoxDecoration(
                           gradient: isDark
-                              ? const LinearGradient(
+                              ? LinearGradient(
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
-                                  colors: [
-                                    Color(0xFF4A2F21),
-                                    Color(0xFF2E1B12),
-                                  ],
+                                  colors: [theme.darkTop, theme.darkBottom],
                                 )
-                              : const LinearGradient(
+                              : LinearGradient(
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
-                                  colors: [
-                                    Color(0xFFE6CBA1),
-                                    Color(0xFFD1AE7C),
-                                  ],
+                                  colors: [theme.lightTop, theme.lightBottom],
                                 ),
                         ),
                         child: Stack(
@@ -1400,11 +3170,7 @@ class _GameScreenState extends State<GameScreen> {
                                 ),
                               ),
                             if (isLastMove)
-                              Container(
-                                color: const Color(
-                                  0xFFC9A227,
-                                ).withOpacity(0.25),
-                              ),
+                              Container(color: theme.accent.withOpacity(0.25)),
                             if (isHintSquare)
                               _PulseGlow(
                                 color: const Color(0xFF42A5F5),
@@ -1429,15 +3195,15 @@ class _GameScreenState extends State<GameScreen> {
             if (hintMove != null)
               IgnorePointer(
                 child: CustomPaint(
-                  size: Size(cell * boardSize, cell * boardSize),
+                  size: Size(cell * size, cell * size),
                   painter: _ArrowPainter(
                     from: Offset(
                       hintMove!.from[1] * cell + cell / 2,
-                      (boardSize - 1 - hintMove!.from[0]) * cell + cell / 2,
+                      (size - 1 - hintMove!.from[0]) * cell + cell / 2,
                     ),
                     to: Offset(
                       hintMove!.to[1] * cell + cell / 2,
-                      (boardSize - 1 - hintMove!.to[0]) * cell + cell / 2,
+                      (size - 1 - hintMove!.to[0]) * cell + cell / 2,
                     ),
                   ),
                 ),
@@ -1462,7 +3228,8 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Widget _buildTapArea(Piece p, double cell) {
-    final screenRow = boardSize - 1 - p.row;
+    final size = variant.size;
+    final screenRow = size - 1 - p.row;
     return AnimatedPositioned(
       key: ValueKey('tap_${p.id}'),
       duration: const Duration(milliseconds: 260),
@@ -1479,7 +3246,8 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Widget _buildAnimatedPiece(Piece p, double cell) {
-    final screenRow = boardSize - 1 - p.row;
+    final size = variant.size;
+    final screenRow = size - 1 - p.row;
     final isSelectedPiece = selectedId == p.id;
     return AnimatedPositioned(
       key: ValueKey('piece_${p.id}'),
@@ -1522,6 +3290,7 @@ class _GameScreenState extends State<GameScreen> {
                   isKing: p.isKing,
                   cellSize: cell,
                   glow: isSelectedPiece,
+                  accent: theme.accent,
                 ),
               ),
             ],
@@ -1535,13 +3304,17 @@ class _GameScreenState extends State<GameScreen> {
     final opponentAlive = pieces.values
         .where((p) => p.isWhite != isPlayer)
         .length;
-    final capturedList = List.generate(16 - opponentAlive, (_) => 0);
+    final maxPerSide = (idGrid.length * idGrid.length) ~/ 4;
+    final capturedList = List.generate(
+      max(0, maxPerSide - opponentAlive),
+      (_) => 0,
+    );
     final isActive =
         !gameOver && ((isPlayer && whiteTurn) || (!isPlayer && !whiteTurn));
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      margin: const EdgeInsets.fromLTRB(10, 4, 10, 12),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -1553,35 +3326,33 @@ class _GameScreenState extends State<GameScreen> {
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isActive
-              ? const Color(0xFFC9A227)
-              : Colors.white.withOpacity(0.12),
+          color: isActive ? theme.accent : Colors.white.withOpacity(0.12),
           width: isActive ? 2 : 1,
         ),
         boxShadow: isActive
-            ? [
-                BoxShadow(
-                  color: const Color(0xFFC9A227).withOpacity(0.28),
-                  blurRadius: 20,
-                ),
-              ]
+            ? [BoxShadow(color: theme.accent.withOpacity(0.28), blurRadius: 20)]
             : [],
       ),
       child: Column(
         children: [
-          _PulsingAvatar(isPlayer: isPlayer, active: isActive),
+          _PulsingAvatar(
+            isPlayer: isPlayer,
+            active: isActive,
+            accent: theme.accent,
+          ),
           const SizedBox(height: 8),
           Text(
             isPlayer ? 'Siz' : 'Yapay Zeka',
+            textAlign: TextAlign.center,
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
-              fontSize: 15,
+              fontSize: 14,
             ),
           ),
           if (isAiThinking && !isPlayer)
-            const Padding(
-              padding: EdgeInsets.only(top: 6),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -1590,18 +3361,21 @@ class _GameScreenState extends State<GameScreen> {
                     height: 11,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Color(0xFFC9A227),
+                      color: theme.accent,
                     ),
                   ),
-                  SizedBox(width: 6),
-                  Text(
-                    'düşünüyor...',
-                    style: TextStyle(color: Colors.white54, fontSize: 11),
+                  const SizedBox(width: 6),
+                  const Flexible(
+                    child: Text(
+                      'düşünüyor...',
+                      style: TextStyle(color: Colors.white54, fontSize: 10),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),
             ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           SizedBox(
             height: 22,
             child: capturedList.isEmpty
@@ -1613,13 +3387,14 @@ class _GameScreenState extends State<GameScreen> {
                     ),
                   )
                 : Wrap(
+                    alignment: WrapAlignment.center,
                     spacing: -6,
                     children: capturedList
-                        .take(16)
+                        .take(20)
                         .map(
                           (_) => Container(
-                            width: 16,
-                            height: 16,
+                            width: 15,
+                            height: 15,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               gradient: RadialGradient(
@@ -1645,36 +3420,27 @@ class _GameScreenState extends State<GameScreen> {
           ),
           const Spacer(),
           if (isPlayer) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: _panelButton(
-                    icon: Icons.undo_rounded,
-                    label: 'Geri Al',
-                    onPressed: (_history.isEmpty || isAiThinking)
-                        ? null
-                        : _undo,
-                  ),
-                ),
-              ],
+            _panelButton(
+              icon: Icons.undo_rounded,
+              label: (_history.isEmpty || isAiThinking)
+                  ? 'Geri Al'
+                  : (Premium.isPremium
+                        ? 'Geri Al'
+                        : 'Geri Al (${(freeUndoLimit - undosUsed).clamp(0, freeUndoLimit)})'),
+              onPressed: (_history.isEmpty || isAiThinking) ? null : _undo,
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _panelButton(
-                    icon: Icons.lightbulb_outline_rounded,
-                    label: isHintLoading ? '...' : 'İpucu',
-                    onPressed:
-                        (!whiteTurn ||
-                            isAiThinking ||
-                            gameOver ||
-                            isHintLoading)
-                        ? null
-                        : _showHint,
-                  ),
-                ),
-              ],
+            _panelButton(
+              icon: Icons.lightbulb_outline_rounded,
+              label: isHintLoading
+                  ? '...'
+                  : (Premium.isPremium
+                        ? 'İpucu'
+                        : 'İpucu (${(freeHintLimit - hintsUsed).clamp(0, freeHintLimit)})'),
+              onPressed:
+                  (!whiteTurn || isAiThinking || gameOver || isHintLoading)
+                  ? null
+                  : _showHint,
             ),
           ] else ...[
             const Text(
@@ -1686,28 +3452,27 @@ class _GameScreenState extends State<GameScreen> {
               alignment: WrapAlignment.center,
               spacing: 4,
               runSpacing: 4,
-              children: [
-                _diffChip('Kolay', 2),
-                _diffChip('Orta', 4),
-                _diffChip('Zor', 6),
-              ],
+              children: kDifficulties.map((d) => _diffChip(d)).toList(),
             ),
             const SizedBox(height: 12),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFC9A227),
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.accent,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
+                onPressed: _restart,
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Yeni Oyun', style: TextStyle(fontSize: 11)),
               ),
-              onPressed: _restart,
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Yeni Oyun', style: TextStyle(fontSize: 12)),
             ),
           ],
         ],
@@ -1721,38 +3486,66 @@ class _GameScreenState extends State<GameScreen> {
     VoidCallback? onPressed,
   }) {
     final enabled = onPressed != null;
-    return OutlinedButton.icon(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: enabled ? const Color(0xFFC9A227) : Colors.white24,
-        side: BorderSide(
-          color: enabled ? const Color(0xFFC9A227) : Colors.white12,
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: enabled ? theme.accent : Colors.white24,
+          side: BorderSide(color: enabled ? theme.accent : Colors.white12),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        onPressed: onPressed,
+        icon: Icon(icon, size: 15),
+        label: Text(
+          label,
+          style: const TextStyle(fontSize: 10.5),
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
-      onPressed: onPressed,
-      icon: Icon(icon, size: 16),
-      label: Text(label, style: const TextStyle(fontSize: 11)),
     );
   }
 
-  Widget _diffChip(String label, int value) {
-    final selected = difficulty == value;
+  Widget _diffChip(Difficulty d) {
+    final selected = difficulty == d.code;
+    final locked = d.premium && !Premium.isPremium;
     return GestureDetector(
-      onTap: () => setState(() => difficulty = value),
+      onTap: () {
+        if (locked) {
+          showLockedFeatureDialog(context, d.label);
+          return;
+        }
+        setState(() => difficulty = d.code);
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFC9A227) : Colors.white10,
+          color: selected ? theme.accent : Colors.white10,
           borderRadius: BorderRadius.circular(14),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: selected ? Colors.black : Colors.white70,
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (locked)
+              Padding(
+                padding: const EdgeInsets.only(right: 3),
+                child: Icon(
+                  Icons.lock_rounded,
+                  size: 10,
+                  color: selected ? Colors.black54 : Colors.white38,
+                ),
+              ),
+            Text(
+              d.label,
+              style: TextStyle(
+                fontSize: 11,
+                color: selected ? Colors.black : Colors.white70,
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1760,7 +3553,7 @@ class _GameScreenState extends State<GameScreen> {
 }
 
 // =======================================================================
-// GORSEL BILESENLER
+// GÖRSEL BİLEŞENLER
 // =======================================================================
 
 class _PieceVisual extends StatelessWidget {
@@ -1768,10 +3561,12 @@ class _PieceVisual extends StatelessWidget {
   final bool isKing;
   final double cellSize;
   final bool glow;
+  final Color accent;
   const _PieceVisual({
     required this.isWhite,
     required this.isKing,
     required this.cellSize,
+    required this.accent,
     this.glow = false,
   });
 
@@ -1798,7 +3593,7 @@ class _PieceVisual extends StatelessWidget {
         boxShadow: [
           if (glow)
             BoxShadow(
-              color: const Color(0xFFC9A227).withOpacity(0.85),
+              color: accent.withOpacity(0.85),
               blurRadius: cellSize * 0.25,
               spreadRadius: 1,
             ),
@@ -1851,7 +3646,7 @@ class _PieceVisual extends StatelessWidget {
             if (isKing)
               Icon(
                 Icons.star_rounded,
-                color: const Color(0xFFC9A227),
+                color: accent,
                 size: cellSize * 0.4,
                 shadows: [
                   Shadow(color: Colors.black.withOpacity(0.6), blurRadius: 3),
@@ -1925,7 +3720,12 @@ class _PulseGlowState extends State<_PulseGlow>
 class _PulsingAvatar extends StatefulWidget {
   final bool isPlayer;
   final bool active;
-  const _PulsingAvatar({required this.isPlayer, required this.active});
+  final Color accent;
+  const _PulsingAvatar({
+    required this.isPlayer,
+    required this.active,
+    required this.accent,
+  });
   @override
   State<_PulsingAvatar> createState() => _PulsingAvatarState();
 }
@@ -1959,19 +3759,19 @@ class _PulsingAvatarState extends State<_PulsingAvatar>
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
-              color: const Color(0xFFC9A227).withOpacity(ringOpacity),
+              color: widget.accent.withOpacity(ringOpacity),
               width: 3,
             ),
           ),
           child: CircleAvatar(
-            radius: 24,
+            radius: 22,
             backgroundColor: widget.isPlayer
                 ? Colors.white
                 : const Color(0xFF1A1A1A),
             child: Icon(
               widget.isPlayer ? Icons.person : Icons.smart_toy,
               color: widget.isPlayer ? Colors.black87 : Colors.white,
-              size: 22,
+              size: 20,
             ),
           ),
         );
